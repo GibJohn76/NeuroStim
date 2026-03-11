@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEURO_STIM APEX v30</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505; --panel: #0a0a0c; --accent: #4deeea; 
+            --danger: #ff2d55; --success: #00ffa3; --border: #1a1a1c; --text: #ffffff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
+
+        header { padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .logo { font-weight: 900; font-size: 1.1rem; letter-spacing: 3px; color: var(--accent); }
+
+        .view-switch { display: flex; background: #111; padding: 4px; border-radius: 10px; border: 1px solid #222; }
+        .v-btn { padding: 6px 12px; border: none; background: none; color: #444; font-size: 0.6rem; font-weight: 900; cursor: pointer; border-radius: 6px; }
+        .v-btn.active { background: #222; color: var(--accent); }
+
+        .app-content { flex: 1; display: flex; flex-direction: column; padding: 20px 40px; gap: 30px; overflow: hidden; }
+
+        /* LOOK ORIGINAL POUR LES STATS */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; max-width: 1000px; margin: 0 auto; width: 100%; }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 0.65rem; color: #888; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; display: block; }
+        .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 900; }
+
+        /* PAGE RYTHME - ZOOM ISOLÉ */
+        #rhythm-view { display: none; flex-direction: column; flex: 1; justify-content: center; align-items: center; gap: clamp(30px, 8vh, 80px); }
+        .rhythm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; width: 100%; max-width: 800px; }
+        #rhythm-view .stat-value { font-size: clamp(2.5rem, 8vw, 5rem); } 
+        
+        #next-timer { 
+            font-family: 'JetBrains Mono', monospace; 
+            font-size: clamp(4.5rem, 18vw, 12rem);
+            font-weight: 900; color: #fff; 
+            text-shadow: 0 0 30px rgba(255,255,255,0.15); line-height: 1; 
+        }
+
+        .progress-bar-container { width: 100%; max-width: 500px; height: 16px; background: #111; border-radius: 8px; overflow: hidden; border: 1px solid #222; margin-top: 20px; }
+        #progress-bar { width: 0%; height: 100%; background: var(--accent); transition: width 1s linear; }
+
+        .chart-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .period-tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .tab { background: #111; border: 1px solid #222; color: #555; padding: 10px 20px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+        .tab.active { border-color: var(--accent); color: var(--accent); background: rgba(77, 238, 234, 0.05); }
+        #chart-wrapper { flex: 1; min-height: 0; position: relative; }
+
+        footer { padding: 0 40px 50px 40px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; width: 100%; }
+        .sos-box { width: 110px; height: 70px; border: 2px solid var(--accent); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-weight: 900; font-size: 0.75rem; cursor: pointer; text-align: center; }
+        .log-circle { width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--danger); display: flex; align-items: center; justify-content: center; color: var(--danger); font-weight: 900; font-size: 1rem; cursor: pointer; box-shadow: 0 0 30px rgba(255, 45, 85, 0.2); }
+        .chrono-time { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 900; }
+
+        #settings { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; display: none; padding: 40px; overflow-y: auto; }
+        input { width: 100%; padding: 15px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px; margin-bottom: 20px; font-size: 1.1rem; }
+        .btn-action { width: 100%; padding: 18px; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">NEURO_STIM <span style="font-weight:100; opacity:0.6">APEX</span></div>
+        <div class="view-switch">
+            <button class="v-btn active" id="v-units" onclick="toggleView('units')">UNITÉS</button>
+            <button class="v-btn" id="v-cash" onclick="toggleView('cash')">DÉPENSES</button>
+            <button class="v-btn" id="v-rythme" onclick="toggleView('rythme')">RYTHME</button>
+        </div>
+        <button onclick="ui('settings', true)" style="background:none; border:none; color:#444; font-size:1.5rem; cursor:pointer;">⚙</button>
+    </header>
+
+    <div class="app-content">
+        <div id="stats-view">
+            <section class="stats-grid">
+                <div class="stat-item"><span class="stat-label">Investi Total</span><div class="stat-value" id="val-total" style="color:var(--danger)">0.00€</div></div>
+                <div class="stat-item"><span class="stat-label" id="label-avg">Moyenne 7J</span><div class="stat-value" id="val-avg">0.0</div></div>
+                <div class="stat-item"><span class="stat-label" id="label-today">Aujourd'hui</span><div class="stat-value" id="val-today">0</div></div>
+                <div class="stat-item"><span class="stat-label">Tendance</span><div class="stat-value" id="val-trend">STABLE</div></div>
+            </section>
+            <section class="chart-section" style="margin-top:30px;">
+                <div class="period-tabs">
+                    <button class="tab active" id="btn-7j" onclick="changePeriod('7j')">7 JOURS</button>
+                    <button class="tab" id="btn-30j" onclick="changePeriod('30j')">30 JOURS</button>
+                    <button class="tab" id="btn-1an" onclick="changePeriod('1an')">1 AN</button>
+                </div>
+                <div id="chart-wrapper"><canvas id="apexChart"></canvas></div>
+            </section>
+        </div>
+
+        <div id="rhythm-view">
+            <div class="rhythm-row">
+                <div class="stat-item"><span class="stat-label">Théorie</span><div class="stat-value" id="ryth-theory" style="color:var(--accent)">0</div></div>
+                <div class="stat-item"><span class="stat-label">Réel</span><div class="stat-value" id="ryth-real">0</div></div>
+            </div>
+            <div class="countdown-box" style="text-align:center; width: 100%;">
+                <span class="stat-label" style="margin-bottom:20px;">PROCHAIN SLOT</span>
+                <div id="next-timer">00:00</div>
+                <div class="progress-bar-container" style="margin: 30px auto 0;"><div id="progress-bar"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="sos-box" id="sos-btn" onclick="runSOS()">SOS<br>ENVIE</div>
+        <div class="log-circle" onclick="addEntry()">LOG<br>CIG</div>
+        <div class="chrono-section"><div class="chrono-time" id="ui-chrono">00:00:00</div><div class="health-hint" id="ui-health">STABLE</div></div>
+    </footer>
+
+    <div id="settings">
+        <div class="modal">
+            <h2 style="margin-bottom:30px; letter-spacing:2px;">SETTINGS</h2>
+            <label class="stat-label">Prix Paquet (€)</label><input type="number" step="0.01" id="set-price">
+            <label class="stat-label">Cig par Paquet</label><input type="number" id="set-count">
+            <label class="stat-label">Objectif Jour</label><input type="number" id="set-goal">
+            <label class="stat-label">SOS Min</label><input type="number" id="set-sos">
+            <button class="btn-action" style="background:var(--accent); color:#000;" onclick="saveSettings()">SAVE CHANGES</button>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
+                <button onclick="exportData()" class="btn-action" style="background:#222; color:#fff;">EXPORT JSON</button>
+                <button onclick="document.getElementById('file-in').click()" class="btn-action" style="background:#222; color:#fff;">IMPORT JSON</button>
+            </div>
+            <input type="file" id="file-in" style="display:none" onchange="importData(event)">
+            <button class="btn-action" style="background:#300; color:var(--danger);" onclick="hardReset()">⚠️ RESET ALL</button>
+            <button onclick="ui('settings', false)" style="width:100%; margin-top:30px; background:none; border:none; color:#444;">CLOSE</button>
+        </div>
+    </div>
+
+<script>
+    let db = { records: [], goal: 12, sosMin: 15, packPrice: 19.5, packCount: 30 };
+    let chart = null, currentPeriod = '7j', currentView = 'units', lastTs = 0, audioCtx = null;
+
+    const getSnd = (f) => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+        o.start(); o.stop(audioCtx.currentTime + 0.2);
+    };
+
+    function init() {
+        const saved = localStorage.getItem('neuro_stim_apex_final');
+        if (saved) { try { db = JSON.parse(saved); } catch(e) { console.error("Data corrupt"); } }
+        refresh(); setInterval(tick, 1000);
+    }
+
+    function toggleView(v) {
+        getSnd(400); currentView = v;
+        document.querySelectorAll('.v-btn').forEach(b => b.classList.toggle('active', b.id === 'v-'+v));
+        document.getElementById('stats-view').style.display = v === 'rythme' ? 'none' : 'flex';
+        document.getElementById('rhythm-view').style.display = v === 'rythme' ? 'flex' : 'none';
+        refresh();
+    }
+
+    function addEntry() {
+        getSnd(220);
+        db.records.push({ ts: Date.now(), p: (db.packPrice / db.packCount), g: db.goal });
+        save(); refresh();
+    }
+
+    function refresh() {
+        const now = new Date(), todayStr = now.toDateString();
+        let totalCash = 0, todayCount = 0, todayCash = 0, dailyMap = {};
+        lastTs = 0;
+
+        db.records.forEach(r => {
+            const d = new Date(r.ts).toDateString();
+            if (!dailyMap[d]) dailyMap[d] = { count: 0, cash: 0, goal: r.g || db.goal };
+            dailyMap[d].count++; dailyMap[d].cash += r.p;
+            totalCash += r.p;
+            if (d === todayStr) { todayCount++; todayCash += r.p; }
+            if (r.ts > lastTs) lastTs = r.ts;
+        });
+
+        document.getElementById('val-total').textContent = totalCash.toFixed(2) + "€";
+        document.getElementById('val-today').textContent = currentView === 'cash' ? todayCash.toFixed(2) + "€" : todayCount;
+        document.getElementById('label-today').textContent = currentView === 'cash' ? "Dépense Jour" : "Aujourd'hui";
+        
+        if (currentView === 'rythme') {
+            const theory = Math.floor((db.goal / 24) * (now.getHours() + now.getMinutes()/60));
+            document.getElementById('ryth-theory').textContent = theory;
+            document.getElementById('ryth-real').textContent = todayCount;
+            document.getElementById('ryth-real').style.color = todayCount > theory ? "var(--danger)" : "var(--success)";
+        }
+
+        const days = currentPeriod === '7j' ? 7 : (currentPeriod === '30j' ? 30 : 365);
+        let curSum = 0, preSum = 0;
+        for(let i=0; i<days; i++) {
+            let d1 = new Date(); d1.setDate(now.getDate() - i);
+            let d2 = new Date(); d2.setDate(now.getDate() - (i + days));
+            const data1 = dailyMap[d1.toDateString()], data2 = dailyMap[d2.toDateString()];
+            curSum += data1 ? (currentView === 'cash' ? data1.cash : data1.count) : 0;
+            preSum += data2 ? (currentView === 'cash' ? data2.cash : data2.count) : 0;
+        }
+        document.getElementById('val-avg').textContent = (curSum / days).toFixed(currentView === 'cash' ? 2 : 1);
+        const tr = document.getElementById('val-trend');
+        tr.textContent = curSum > preSum ? "HAUSSE ↑" : (curSum < preSum ? "BAISSE ↓" : "STABLE");
+        tr.style.color = curSum > preSum ? "var(--danger)" : (curSum < preSum ? "var(--success)" : "#fff");
+
+        if (currentView !== 'rythme') updateChart(days, dailyMap);
+        updateHealth(lastTs);
+    }
+
+    function updateHealth(ts) {
+        const el = document.getElementById('ui-health');
+        if (!ts) { el.textContent = "STABLE"; return; }
+        const diff = (Date.now() - ts) / 1000;
+        el.textContent = diff < 3600 ? "Élimination CO..." : (diff < 28800 ? "Oxygénation ++" : "Récupération cils");
+    }
+
+    function updateChart(days, map) {
+        if (chart) chart.destroy();
+        const ctx = document.getElementById('apexChart').getContext('2d');
+        const labels = [], data = [], goals = [];
+        for (let i = days - 1; i >= 0; i--) {
+            let d = new Date(); d.setDate(new Date().getDate() - i);
+            labels.push(days === 365 ? (i%60===0 ? d.toLocaleDateString() : '') : d.getDate());
+            const dayData = map[d.toDateString()];
+            data.push(dayData ? (currentView === 'cash' ? dayData.cash : dayData.count) : 0);
+            if (currentView === 'units') goals.push(dayData ? dayData.goal : db.goal);
+        }
+        chart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ data, borderColor: currentView === 'cash' ? '#00ffa3' : '#4deeea', borderWidth: 3, tension: 0.4, pointRadius: days > 30 ? 0 : 4 }, { data: currentView === 'units' ? goals : [], borderColor: 'rgba(255, 45, 85, 0.3)', borderDash: [5, 5], borderWidth: 1, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#1a1a1a' } }, x: { grid: { display: false } } } } });
+    }
+
+    function tick() {
+        if (!lastTs) return;
+        const diff = Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+        document.getElementById('ui-chrono').textContent = `${Math.floor(diff/3600).toString().padStart(2,'0')}:${Math.floor((diff%3600)/60).toString().padStart(2,'0')}:${(diff%60).toString().padStart(2,'0')}`;
+        if (currentView === 'rythme') {
+            const interval = (24 / db.goal) * 3600;
+            const prog = Math.min((diff / interval) * 100, 100);
+            document.getElementById('progress-bar').style.width = prog + "%";
+            const rem = Math.max(interval - diff, 0);
+            document.getElementById('next-timer').textContent = `${Math.floor(rem/60).toString().padStart(2,'0')}:${Math.floor(rem%60).toString().padStart(2,'0')}`;
+            document.getElementById('next-timer').style.color = rem === 0 ? "var(--success)" : "#fff";
+        }
+    }
+
+    window.saveSettings = () => { getSnd(600); db.packPrice = parseFloat(document.getElementById('set-price').value); db.packCount = parseInt(document.getElementById('set-count').value); db.goal = parseInt(document.getElementById('set-goal').value); db.sosMin = parseInt(document.getElementById('set-sos').value); save(); refresh(); ui('settings', false); };
+    window.exportData = () => { getSnd(500); const blob = new Blob([JSON.stringify(db)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `neuro_stim_backup.json`; a.click(); };
+    window.importData = (e) => { const reader = new FileReader(); reader.onload = (f) => { try { db = JSON.parse(f.target.result); save(); refresh(); ui('settings', false); } catch(err) { alert("Format invalide"); } }; reader.readAsText(e.target.files[0]); };
+    window.hardReset = () => { if(confirm("⚠️ RESET TOTAL ?")) { localStorage.removeItem('neuro_stim_apex_final'); location.reload(); } };
+    function save() { localStorage.setItem('neuro_stim_apex_final', JSON.stringify(db)); }
+    window.ui = (id, show) => { if(show) { document.getElementById('set-price').value = db.packPrice; document.getElementById('set-count').value = db.packCount; document.getElementById('set-goal').value = db.goal; document.getElementById('set-sos').value = db.sosMin; } document.getElementById(id).style.display = show ? 'block' : 'none'; };
+    window.changePeriod = (p) => { getSnd(300); currentPeriod = p; document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'btn-'+p)); refresh(); };
+    window.runSOS = () => { getSnd(880); const b = document.getElementById('sos-btn'); b.style.pointerEvents = 'none'; let s = db.sosMin * 60; const itv = setInterval(() => { b.innerText = `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; if (s-- <= 0) { clearInterval(itv); b.innerText = "SOS\nENVIE"; b.style.pointerEvents = 'auto'; } }, 1000); };
+    init();
+</script>
+</body>
+</html>
