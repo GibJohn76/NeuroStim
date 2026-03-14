@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEURO_STIM RYTHME v34</title>
+    <title>NEURO_STIM RYTHME v36</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -21,7 +21,6 @@
         .label { font-size: 0.65rem; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; display: block; }
         .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(2rem, 6vw, 4rem); font-weight: 900; }
 
-        /* BOX DU RECORD VALIDÉ */
         .record-box { border: 1px solid var(--accent); padding: 15px; border-radius: 12px; min-width: 220px; background: rgba(77, 238, 234, 0.05); }
         .record-val { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; color: var(--accent); font-weight: 900; }
         
@@ -30,14 +29,15 @@
             padding: 10px; border-radius: 6px; font-weight: 900; font-size: 0.65rem; 
             cursor: pointer; display: none; width: 100%; transition: transform 0.1s;
         }
-        #btn-validate:active { transform: scale(0.95); }
 
         .timer-section { text-align: center; width: 100%; }
         .abstinence-label { font-size: 0.8rem; color: var(--accent); font-weight: 900; margin-bottom: 10px; display: block; }
         #live-abstinence { font-family: 'JetBrains Mono', monospace; font-size: clamp(4rem, 18vw, 12rem); line-height: 0.9; font-weight: 900; margin-bottom: 20px; }
 
         .progress-container { width: 100%; max-width: 500px; height: 12px; background: #111; border-radius: 6px; margin: 20px auto; border: 1px solid #222; overflow: hidden; }
-        #bar { width: 0%; height: 100%; background: var(--accent); transition: width 1s linear; }
+        #bar { width: 0%; height: 100%; background: var(--danger); transition: width 1s linear; }
+
+        #next-slot-label { font-weight: 900; font-size: 0.75rem; letter-spacing: 1px; color: var(--danger); }
 
         .footer-tools { padding: 40px; display: flex; justify-content: center; }
         .btn-back { padding: 15px 30px; border: 1px solid #333; background: #111; color: #fff; border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer; text-decoration: none; }
@@ -50,13 +50,11 @@
     <div class="content">
         <div class="stats-row">
             <div><span class="label">Théorie</span><div class="val" id="theory" style="color:var(--accent)">0</div></div>
-            
             <div class="record-box">
                 <span class="label" style="font-size: 0.55rem; color:var(--accent)">Record Manuel Validé</span>
                 <div class="record-val" id="record-display">00:00:00</div>
                 <button id="btn-validate" onclick="claimRecord()">⭐ ÉTABLIR NOUVEAU RECORD</button>
             </div>
-
             <div><span class="label">Réel</span><div class="val" id="real">0</div></div>
         </div>
 
@@ -64,14 +62,13 @@
             <span class="abstinence-label">Abstinence Actuelle</span>
             <div id="live-abstinence">00:00:00</div>
             <div class="progress-container"><div id="bar"></div></div>
-            <span class="label" id="next-slot-label">Prochain Slot dans --:--</span>
+            <span id="next-slot-label">PROCHAIN SLOT DANS --:--</span>
         </div>
     </div>
 
     <div class="footer-tools"><a href="index.html" class="btn-back">RETOUR</a></div>
 
 <script>
-    // Initialisation avec sécurité sur bestRecord
     let db = { records: [], goal: 12, bestRecord: 0 };
     let currentAbstinenceMs = 0;
     
@@ -79,17 +76,14 @@
         const saved = localStorage.getItem('neuro_stim_apex_final');
         if (saved) {
             const data = JSON.parse(saved);
-            // On s'assure de récupérer le record s'il existe déjà
-            if (data.bestRecord !== undefined) db.bestRecord = data.bestRecord;
+            db.bestRecord = data.bestRecord || 0;
             db.records = data.records || [];
             db.goal = data.goal || 12;
         }
         update();
     }
 
-    function save() {
-        localStorage.setItem('neuro_stim_apex_final', JSON.stringify(db));
-    }
+    function save() { localStorage.setItem('neuro_stim_apex_final', JSON.stringify(db)); }
 
     function formatTime(ms) {
         if (!ms || ms < 0) return "00:00:00";
@@ -99,15 +93,9 @@
         return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     }
 
-    // FONCTION CLÉ : Le record ne change QUE si tu cliques ici
     function claimRecord() {
         db.bestRecord = currentAbstinenceMs;
-        save();
-        update();
-        // Feedback visuel rapide
-        const box = document.querySelector('.record-box');
-        box.style.borderColor = "#00ffa3";
-        setTimeout(() => box.style.borderColor = "var(--accent)", 500);
+        save(); update();
     }
 
     function update() {
@@ -118,35 +106,41 @@
         document.getElementById('theory').textContent = Math.floor((db.goal / 24) * (new Date().getHours() + new Date().getMinutes()/60));
         document.getElementById('real').textContent = todayRecords.length;
 
-        // Calcul Temps écoulé depuis le dernier LOG
         const lastTs = db.records.length > 0 ? Math.max(...db.records.map(r => r.ts)) : 0;
         
         if (lastTs > 0) {
             currentAbstinenceMs = now - lastTs;
             document.getElementById('live-abstinence').textContent = formatTime(currentAbstinenceMs);
-            
-            // On affiche le bouton seulement si le temps actuel bat le record en mémoire
-            if (currentAbstinenceMs > db.bestRecord) {
-                document.getElementById('btn-validate').style.display = 'block';
-            } else {
-                document.getElementById('btn-validate').style.display = 'none';
-            }
+            document.getElementById('btn-validate').style.display = currentAbstinenceMs > db.bestRecord ? 'block' : 'none';
         }
 
-        // Affichage du record (lui ne change que si claimRecord est appelé)
         document.getElementById('record-display').textContent = formatTime(db.bestRecord);
 
-        // Rythme des slots
         const interval = (24 / db.goal) * 3600;
         const diffSec = Math.floor(currentAbstinenceMs / 1000);
         const rem = Math.max(interval - diffSec, 0);
-        document.getElementById('next-slot-label').textContent = `Prochain Slot dans ${Math.floor(rem/60).toString().padStart(2,'0')}:${Math.floor(rem%60).toString().padStart(2,'0')}`;
-        document.getElementById('bar').style.width = Math.min((diffSec / interval) * 100, 100) + "%";
+        
+        const label = document.getElementById('next-slot-label');
+        const bar = document.getElementById('bar');
+        
+        // Mise à jour de la largeur de la barre
+        bar.style.width = Math.min((diffSec / interval) * 100, 100) + "%";
+
+        if (rem === 0) {
+            label.style.color = "var(--success)";
+            bar.style.backgroundColor = "var(--success)";
+            label.textContent = "PROCHAIN SLOT DANS 00:00 (PRÊT)";
+        } else {
+            label.style.color = "var(--danger)";
+            bar.style.backgroundColor = "var(--danger)";
+            const m = Math.floor(rem/60).toString().padStart(2,'0');
+            const s = Math.floor(rem%60).toString().padStart(2,'0');
+            label.textContent = `PROCHAIN SLOT DANS ${m}:${s}`;
+        }
     }
 
     setInterval(update, 1000);
     window.onload = load;
-    // Important : si tu modifies les données sur la page stats, cette page se met à jour
     window.addEventListener('storage', load);
 </script>
 </body>
