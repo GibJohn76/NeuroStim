@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEURO_STIM APEX v23</title>
+    <title>NEURO_STIM APEX v24</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -163,7 +163,8 @@
     </div>
 
 <script>
-    let db = { records: [], goal: 14, sosMin: 15, packPrice: 19.5, packCount: 30 };
+    // Ajout de bestRecord dans l'objet par défaut
+    let db = { records: [], goal: 14, sosMin: 15, packPrice: 19.5, packCount: 30, bestRecord: 0 };
     let chart = null;
     let currentPeriod = '7j';
     let currentView = 'cig'; // 'cig' ou 'cash'
@@ -183,7 +184,11 @@
 
     function init() {
         const saved = localStorage.getItem('neuro_stim_apex_final');
-        if (saved) db = JSON.parse(saved);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            // On fusionne pour être sûr de garder bestRecord s'il existe
+            db = { ...db, ...parsed };
+        }
         refresh();
         setInterval(tick, 1000);
     }
@@ -220,7 +225,6 @@
             if (r.ts > lastTs) lastTs = r.ts;
         });
 
-        // Mise à jour des labels et valeurs selon la vue
         document.getElementById('val-total').innerText = totalSpent.toFixed(2) + "€";
         document.getElementById('val-today').innerText = currentView === 'cig' ? todayCount : todayCash.toFixed(2) + "€";
         document.getElementById('label-today').innerText = currentView === 'cig' ? "Aujourd'hui" : "Coût Jour";
@@ -232,10 +236,8 @@
         for(let i=0; i<days; i++) {
             let d1 = new Date(); d1.setDate(now.getDate() - i);
             let d2 = new Date(); d2.setDate(now.getDate() - (i + days));
-            
             const data1 = dailyMap[d1.toDateString()];
             const data2 = dailyMap[d2.toDateString()];
-            
             curSum += data1 ? (currentView === 'cig' ? data1.count : data1.cash) : 0;
             preSum += data2 ? (currentView === 'cig' ? data2.count : data2.cash) : 0;
         }
@@ -259,8 +261,6 @@
             labels.push(days === 365 ? (i%60===0 ? d.toLocaleDateString() : '') : d.getDate());
             const dayData = map[d.toDateString()];
             data.push(dayData ? (currentView === 'cig' ? dayData.count : dayData.cash) : 0);
-            
-            // Ligne d'objectif (On la cache ou on l'adapte en vue Cash)
             if (currentView === 'cig') {
                 goals.push(dayData ? dayData.goal : db.goal);
             }
@@ -336,7 +336,16 @@
         refresh(); 
     };
     window.exportData = () => { const blob = new Blob([JSON.stringify(db)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `neuro_stim_backup.json`; a.click(); };
-    window.importData = (e) => { const reader = new FileReader(); reader.onload = (f) => { db = JSON.parse(f.target.result); save(); refresh(); ui('settings', false); }; reader.readAsText(e.target.files[0]); };
+    window.importData = (e) => { 
+        const reader = new FileReader(); 
+        reader.onload = (f) => { 
+            const data = JSON.parse(f.target.result);
+            // Sécurité : on s'assure que même si le JSON est vieux, on ne casse pas db
+            db = { ...db, ...data };
+            save(); refresh(); ui('settings', false); 
+        }; 
+        reader.readAsText(e.target.files[0]); 
+    };
     window.runSOS = () => {
         playSound(880);
         const btn = document.getElementById('sos-btn'); btn.style.pointerEvents = 'none';
