@@ -3,121 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEURO_STIM RYTHME</title>
+    <title>NEURO_STIM RYTHME v34</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #050505; --accent: #4deeea; --danger: #ff2d55; --success: #00ffa3; --text: #ffffff;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        body { 
-            font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); 
-            height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
-        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
         .header { padding: 30px; border-bottom: 1px solid #1a1a1c; text-align: center; }
         .logo { font-weight: 900; font-size: 1rem; letter-spacing: 4px; color: var(--accent); }
 
-        .content { 
-            flex: 1; display: flex; flex-direction: column; justify-content: center; 
-            align-items: center; gap: clamp(40px, 10vh, 100px); padding: 20px;
-        }
+        .content { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px; padding: 20px; }
 
-        .stats-row { 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 60px; 
-            width: 100%; max-width: 900px; text-align: center; 
+        .stats-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; width: 100%; max-width: 1000px; text-align: center; align-items: center; }
+        .label { font-size: 0.65rem; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(2rem, 6vw, 4rem); font-weight: 900; }
+
+        /* BOX DU RECORD VALIDÉ */
+        .record-box { border: 1px solid var(--accent); padding: 15px; border-radius: 12px; min-width: 220px; background: rgba(77, 238, 234, 0.05); }
+        .record-val { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; color: var(--accent); font-weight: 900; }
+        
+        #btn-validate { 
+            margin-top: 15px; background: var(--accent); color: #000; border: none; 
+            padding: 10px; border-radius: 6px; font-weight: 900; font-size: 0.65rem; 
+            cursor: pointer; display: none; width: 100%; transition: transform 0.1s;
         }
-        .label { font-size: clamp(0.7rem, 2vw, 0.9rem); color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 15px; display: block; }
-        .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(3rem, 10vw, 6rem); font-weight: 900; }
+        #btn-validate:active { transform: scale(0.95); }
 
         .timer-section { text-align: center; width: 100%; }
-        #next-timer { 
-            font-family: 'JetBrains Mono', monospace; 
-            font-size: clamp(5rem, 22vw, 15rem); 
-            line-height: 0.9; font-weight: 900; margin-bottom: 20px;
-            text-shadow: 0 0 40px rgba(255,255,255,0.1);
-        }
+        .abstinence-label { font-size: 0.8rem; color: var(--accent); font-weight: 900; margin-bottom: 10px; display: block; }
+        #live-abstinence { font-family: 'JetBrains Mono', monospace; font-size: clamp(4rem, 18vw, 12rem); line-height: 0.9; font-weight: 900; margin-bottom: 20px; }
 
-        .progress-container { 
-            width: 100%; max-width: 600px; height: 18px; background: #111; 
-            border-radius: 9px; margin: 30px auto; border: 1px solid #222; overflow: hidden; 
-        }
+        .progress-container { width: 100%; max-width: 500px; height: 12px; background: #111; border-radius: 6px; margin: 20px auto; border: 1px solid #222; overflow: hidden; }
         #bar { width: 0%; height: 100%; background: var(--accent); transition: width 1s linear; }
 
-        .footer-tools { padding: 40px; display: flex; justify-content: center; gap: 20px; }
-        .btn-back { 
-            padding: 15px 30px; border: 1px solid #333; background: #111; color: #fff; 
-            border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer;
-            text-decoration: none;
-        }
+        .footer-tools { padding: 40px; display: flex; justify-content: center; }
+        .btn-back { padding: 15px 30px; border: 1px solid #333; background: #111; color: #fff; border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer; text-decoration: none; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo">NEURO_STIM <span style="font-weight:100; opacity:0.5">RYTHME</span></div>
-    </div>
+    <div class="header"><div class="logo">NEURO_STIM <span style="font-weight:100; opacity:0.5">RYTHME</span></div></div>
 
     <div class="content">
         <div class="stats-row">
             <div><span class="label">Théorie</span><div class="val" id="theory" style="color:var(--accent)">0</div></div>
+            
+            <div class="record-box">
+                <span class="label" style="font-size: 0.55rem; color:var(--accent)">Record Manuel Validé</span>
+                <div class="record-val" id="record-display">00:00:00</div>
+                <button id="btn-validate" onclick="claimRecord()">⭐ ÉTABLIR NOUVEAU RECORD</button>
+            </div>
+
             <div><span class="label">Réel</span><div class="val" id="real">0</div></div>
         </div>
 
         <div class="timer-section">
-            <span class="label">Prochain Slot</span>
-            <div id="next-timer">00:00</div>
+            <span class="abstinence-label">Abstinence Actuelle</span>
+            <div id="live-abstinence">00:00:00</div>
             <div class="progress-container"><div id="bar"></div></div>
+            <span class="label" id="next-slot-label">Prochain Slot dans --:--</span>
         </div>
     </div>
 
-    <div class="footer-tools">
-        <a href="index.html" class="btn-back">RETOUR AUX STATS</a>
-    </div>
+    <div class="footer-tools"><a href="index.html" class="btn-back">RETOUR</a></div>
 
 <script>
-    let db = { records: [], goal: 12 };
+    // Initialisation avec sécurité sur bestRecord
+    let db = { records: [], goal: 12, bestRecord: 0 };
+    let currentAbstinenceMs = 0;
     
     function load() {
         const saved = localStorage.getItem('neuro_stim_apex_final');
-        if (saved) db = JSON.parse(saved);
+        if (saved) {
+            const data = JSON.parse(saved);
+            // On s'assure de récupérer le record s'il existe déjà
+            if (data.bestRecord !== undefined) db.bestRecord = data.bestRecord;
+            db.records = data.records || [];
+            db.goal = data.goal || 12;
+        }
         update();
     }
 
+    function save() {
+        localStorage.setItem('neuro_stim_apex_final', JSON.stringify(db));
+    }
+
+    function formatTime(ms) {
+        if (!ms || ms < 0) return "00:00:00";
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
+
+    // FONCTION CLÉ : Le record ne change QUE si tu cliques ici
+    function claimRecord() {
+        db.bestRecord = currentAbstinenceMs;
+        save();
+        update();
+        // Feedback visuel rapide
+        const box = document.querySelector('.record-box');
+        box.style.borderColor = "#00ffa3";
+        setTimeout(() => box.style.borderColor = "var(--accent)", 500);
+    }
+
     function update() {
-        const now = new Date();
-        const todayStr = now.toDateString();
-        
-        // Calcul Réel
+        const now = Date.now();
+        const todayStr = new Date().toDateString();
         const todayRecords = db.records.filter(r => new Date(r.ts).toDateString() === todayStr);
-        const realCount = todayRecords.length;
         
-        // Calcul Théorie (Division sur 24h)
-        const theoryCount = Math.floor((db.goal / 24) * (now.getHours() + now.getMinutes()/60));
-        
-        // Dernier LOG pour le chrono
+        document.getElementById('theory').textContent = Math.floor((db.goal / 24) * (new Date().getHours() + new Date().getMinutes()/60));
+        document.getElementById('real').textContent = todayRecords.length;
+
+        // Calcul Temps écoulé depuis le dernier LOG
         const lastTs = db.records.length > 0 ? Math.max(...db.records.map(r => r.ts)) : 0;
-
-        // UI
-        document.getElementById('theory').textContent = theoryCount;
-        document.getElementById('real').textContent = realCount;
-        document.getElementById('real').style.color = realCount > theoryCount ? "var(--danger)" : "var(--success)";
-
+        
         if (lastTs > 0) {
-            const diff = Math.floor((Date.now() - lastTs) / 1000);
-            const interval = (24 / db.goal) * 3600;
-            const rem = Math.max(interval - diff, 0);
+            currentAbstinenceMs = now - lastTs;
+            document.getElementById('live-abstinence').textContent = formatTime(currentAbstinenceMs);
             
-            document.getElementById('next-timer').textContent = 
-                `${Math.floor(rem/60).toString().padStart(2,'0')}:${Math.floor(rem%60).toString().padStart(2,'0')}`;
-            document.getElementById('next-timer').style.color = rem === 0 ? "var(--success)" : "#fff";
-            document.getElementById('bar').style.width = Math.min((diff / interval) * 100, 100) + "%";
+            // On affiche le bouton seulement si le temps actuel bat le record en mémoire
+            if (currentAbstinenceMs > db.bestRecord) {
+                document.getElementById('btn-validate').style.display = 'block';
+            } else {
+                document.getElementById('btn-validate').style.display = 'none';
+            }
         }
+
+        // Affichage du record (lui ne change que si claimRecord est appelé)
+        document.getElementById('record-display').textContent = formatTime(db.bestRecord);
+
+        // Rythme des slots
+        const interval = (24 / db.goal) * 3600;
+        const diffSec = Math.floor(currentAbstinenceMs / 1000);
+        const rem = Math.max(interval - diffSec, 0);
+        document.getElementById('next-slot-label').textContent = `Prochain Slot dans ${Math.floor(rem/60).toString().padStart(2,'0')}:${Math.floor(rem%60).toString().padStart(2,'0')}`;
+        document.getElementById('bar').style.width = Math.min((diffSec / interval) * 100, 100) + "%";
     }
 
     setInterval(update, 1000);
     window.onload = load;
-    // Écouter si les données changent dans un autre onglet/page
+    // Important : si tu modifies les données sur la page stats, cette page se met à jour
     window.addEventListener('storage', load);
 </script>
 </body>
