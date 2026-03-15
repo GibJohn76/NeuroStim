@@ -8,48 +8,50 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg: #050505; --accent: #4deeea; --danger: #ff2d55; --success: #00ffa3; --text: #ffffff;
+            --bg: #000000; --accent: #4deeea; --danger: #ff2d55; --success: #00ffa3; --text: #ffffff;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         
         body { 
             font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); 
             height: 100dvh; display: flex; flex-direction: column; 
-            overflow: hidden; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+            overflow: hidden; padding: env(safe-area-inset-top) 15px env(safe-area-inset-bottom) 15px;
         }
 
-        .header { height: 15vh; display: flex; align-items: center; justify-content: center; flex: none; }
-        .logo { font-weight: 900; font-size: 1rem; letter-spacing: 4px; color: var(--accent); text-transform: uppercase; }
+        .header { height: 10vh; display: flex; align-items: center; justify-content: center; flex: none; }
+        .logo { font-weight: 900; font-size: 1.2rem; letter-spacing: 4px; color: var(--accent); text-transform: uppercase; }
         
         .stats-summary { 
-            height: 12vh; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; 
-            padding: 0 20px; flex: none; 
+            display: flex; justify-content: center; gap: 15px; height: 12vh; margin-bottom: 10px; flex: none; 
         }
-        .stat-card { background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 10px; border-radius: 12px; text-align: center; }
-        .stat-label { font-size: 2.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; display: block; opacity: 0.8; }
-        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; }
+        .stat-card { 
+            background: #111; border: 1px solid #333; 
+            padding: 12px; border-radius: 12px; text-align: center;
+            flex: 1; max-width: 180px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .stat-label { font-size: 0.7rem; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px; font-weight: 700; }
+        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; color: #fff; line-height: 1; display: flex; align-items: center; justify-content: center; }
+        .trend-indicator { font-size: 0.8rem; font-weight: 900; margin-left: 8px; padding: 2px 4px; border-radius: 4px; }
 
         .chart-container { 
-            flex: 1; 
-            padding: 10px 20px;
-            min-height: 0; 
-            position: relative;
+            flex: 1; min-height: 0; position: relative; 
+            background: #050505; border-radius: 15px; border: 1px solid #222;
+            padding: 15px 5px 5px 5px;
         }
 
-        .footer { 
-            height: 15vh; display: flex; align-items: center; justify-content: center; flex: none;
-        }
+        .footer { height: 12vh; display: flex; align-items: center; justify-content: center; flex: none; }
         .btn-back { 
-            font-size: 0.75rem; font-weight: 900; color: #fff; text-decoration: none; 
-            text-transform: uppercase; letter-spacing: 1px; border: 1px solid #333;
-            padding: 12px 30px; border-radius: 10px; background: #111;
+            font-size: 0.8rem; font-weight: 900; color: #fff; text-decoration: none; 
+            text-transform: uppercase; letter-spacing: 2px; border: 2px solid #333;
+            padding: 15px 40px; border-radius: 12px; background: #111;
         }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="logo">Analytic <span style="font-weight:100; opacity:0.5">Fréquence</span></div>
+        <div class="logo">NEURO <span style="font-weight:100;">ANALYTIC</span></div>
     </div>
 
     <div class="stats-summary">
@@ -58,8 +60,11 @@
             <div class="stat-val" id="today-total" style="color: var(--success)">0</div>
         </div>
         <div class="stat-card">
-            <span class="stat-label">Moyenne / J</span>
-            <div class="stat-val" id="avg-total" style="color: var(--danger)">0</div>
+            <span class="stat-label">Moyenne 15J</span>
+            <div class="stat-val">
+                <span id="avg-total">0</span>
+                <span id="trend-val" class="trend-indicator"></span>
+            </div>
         </div>
     </div>
 
@@ -72,56 +77,79 @@
     </div>
 
 <script>
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
     function loadData() {
         const saved = localStorage.getItem('neuro_stim_apex_final');
         return saved ? JSON.parse(saved) : { records: [] };
     }
 
-    function getNormalizedDensity(records, isTodayOnly) {
-        const now = new Date();
-        const todayStr = now.toDateString();
+    function getDensity(records, isTodayOnly) {
         let density = new Array(144).fill(0);
+        const now = new Date();
         
-        const filtered = isTodayOnly 
-            ? records.filter(r => new Date(r.ts).toDateString() === todayStr)
-            : records;
+        let filtered;
+        if (isTodayOnly) {
+            const todayStr = now.toDateString();
+            filtered = records.filter(r => new Date(r.ts).toDateString() === todayStr);
+        } else {
+            const thirtyDaysAgo = Date.now() - (30 * MS_PER_DAY);
+            filtered = records.filter(r => r.ts >= thirtyDaysAgo);
+        }
 
         if (filtered.length === 0) return density;
 
         filtered.forEach(r => {
             const d = new Date(r.ts);
             const index = Math.floor((d.getHours() * 60 + d.getMinutes()) / 10);
-            for(let i = -2; i <= 2; i++) {
+            const weights = [0.4, 0.7, 0.9, 1.0, 0.9, 0.7, 0.4]; 
+            for(let i = -3; i <= 3; i++) {
                 let idx = (index + i + 144) % 144;
-                let weight = i === 0 ? 1 : (Math.abs(i) === 1 ? 0.6 : 0.3);
-                density[idx] += weight;
+                density[idx] += weights[i + 3];
             }
         });
 
-        const maxVal = Math.max(...density);
-        return maxVal > 0 ? density.map(v => v / maxVal) : density;
+        if (!isTodayOnly) return density.map(v => Math.min(v / 30, 1.0));
+        return density.map(v => Math.min(v, 1.0));
     }
 
     function processStats() {
         const db = loadData();
         const records = db.records || [];
-        
-        const todayData = getNormalizedDensity(records, true);
-        const avgData = getNormalizedDensity(records, false);
-        
-        const todayCount = records.filter(r => new Date(r.ts).toDateString() === new Date().toDateString()).length;
-        const totalDays = new Set(records.map(r => new Date(r.ts).toDateString())).size || 1;
-        
-        document.getElementById('today-total').textContent = todayCount;
-        document.getElementById('avg-total').textContent = (records.length / totalDays).toFixed(1);
+        const nowTs = Date.now();
 
-        renderChart(todayData, avgData);
+        const todayData = getDensity(records, true);
+        const habitData = getDensity(records, false); 
+        
+        const last15 = records.filter(r => r.ts > (nowTs - (15 * MS_PER_DAY)));
+        const prev15 = records.filter(r => r.ts <= (nowTs - (15 * MS_PER_DAY)) && r.ts > (nowTs - (30 * MS_PER_DAY)));
+        
+        const currentAvg = last15.length / 15;
+        const previousAvg = prev15.length / 15;
+
+        document.getElementById('today-total').textContent = records.filter(r => new Date(r.ts).toDateString() === new Date().toDateString()).length;
+        document.getElementById('avg-total').textContent = currentAvg.toFixed(1);
+
+        const trendEl = document.getElementById('trend-val');
+        if (previousAvg > 0) {
+            const diff = ((currentAvg - previousAvg) / previousAvg) * 100;
+            const sign = diff > 0 ? '↑' : '↓';
+            trendEl.textContent = `${sign}${Math.abs(diff).toFixed(0)}%`;
+            trendEl.style.color = diff > 0 ? 'var(--danger)' : 'var(--success)';
+            trendEl.style.background = "rgba(255,255,255,0.05)";
+        } else {
+            // Sécurité : Affiche "NEW" si pas de données de comparaison
+            trendEl.textContent = "NEW";
+            trendEl.style.color = "#888";
+            trendEl.style.background = "transparent";
+        }
+
+        renderChart(todayData, habitData);
     }
 
-    function renderChart(today, average) {
+    function renderChart(today, habits) {
         const ctx = document.getElementById('frequencyChart').getContext('2d');
         const labels = Array.from({length: 144}, (_, i) => {
-            if (i === 143) return '0h';
             const h = Math.floor((i * 10) / 60);
             const m = (i * 10) % 60;
             return m === 0 ? h + 'h' : '';
@@ -136,19 +164,19 @@
                         label: 'Réel',
                         data: today,
                         borderColor: '#00ffa3',
-                        backgroundColor: 'rgba(0, 255, 163, 0.05)',
-                        borderWidth: 2,
-                        tension: 0.5,
+                        backgroundColor: 'rgba(0, 255, 163, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
                         fill: true,
                         pointRadius: 0
                     },
                     {
-                        label: 'Moyenne',
-                        data: average,
+                        label: 'Habitude',
+                        data: habits,
                         borderColor: '#ff2d55',
-                        borderWidth: 1.5,
+                        borderWidth: 2,
                         borderDash: [5, 5],
-                        tension: 0.5,
+                        tension: 0.4,
                         fill: false,
                         pointRadius: 0
                     }
@@ -157,36 +185,24 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                clip: false,
-                layout: {
-                    padding: { left: 15, right: 15, top: 10, bottom: 0 }
-                },
+                layout: { padding: { bottom: 10 } },
                 plugins: { legend: { display: false } },
                 scales: {
                     y: { 
                         beginAtZero: true, 
-                        min: 0,
-                        max: 1.0,
-                        grid: { color: 'rgba(255,255,255,0.05)' }, 
+                        min: 0, max: 1.0,
+                        grid: { color: '#222', drawBorder: false }, 
                         ticks: { 
-                            stepSize: 0.1,
-                            color: '#fff', 
-                            font: { size: 8, family: 'JetBrains Mono' },
-                            callback: function(value) {
-                                if (value === 1) return 'MAX';
-                                if (value === 0.5) return '0.5';
-                                return value.toFixed(1);
-                            }
+                            stepSize: 0.1, color: '#fff', 
+                            font: { size: 10, family: 'JetBrains Mono', weight: 'bold' },
+                            callback: v => v === 1 ? 'MAX' : v.toFixed(1)
                         } 
                     },
                     x: { 
-                        offset: true, 
                         grid: { display: false }, 
                         ticks: { 
-                            color: '#fff', 
-                            font: { size: 8, family: 'JetBrains Mono' },
-                            maxRotation: 0,
-                            autoSkip: false
+                            color: '#fff', font: { size: 9, family: 'JetBrains Mono', weight: 'bold' },
+                            maxRotation: 0, autoSkip: false
                         } 
                     }
                 }
