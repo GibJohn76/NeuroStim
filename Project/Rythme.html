@@ -15,7 +15,6 @@
         .header { padding: 90px 30px 30px 30px; border-bottom: 1px solid #1a1a1c; text-align: center; flex: none; }
         .logo { font-weight: 900; font-size: 2.5rem; letter-spacing: 4px; color: var(--accent); }
 
-        /* Content ne prend que sa place pour laisser le reste au footer */
         .content { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px; padding: 20px; }
 
         .timer-section { text-align: center; width: 100%; order: 1; }
@@ -46,7 +45,6 @@
         }
         .log-circle:active { transform: scale(0.92); }
 
-        /* Distribution automatique de l'espace pour centrer le LOG */
         .footer-tools { 
             flex: 1; 
             display: flex; 
@@ -139,7 +137,17 @@
         const todayStr = new Date().toDateString();
         const todayRecords = db.records.filter(r => new Date(r.ts).toDateString() === todayStr);
         
-        document.getElementById('theory').textContent = Math.floor((db.goal / 24) * (new Date().getHours() + new Date().getMinutes()/60));
+        // --- MODIFICATION DU CALCUL THÉORIQUE ---
+        // On calcule le temps passé en heures (ex: 14.5 pour 14h30)
+        const hoursPast = new Date().getHours() + new Date().getMinutes()/60;
+        // On définit l'intervalle idéal (ex: 2h pour un objectif de 12)
+        const interval = 24 / db.goal;
+        // Le compteur démarre à 1 et ne peut pas dépasser l'objectif (db.goal)
+        const theoryVal = Math.min(Math.floor(hoursPast / interval) + 1, db.goal);
+        
+        document.getElementById('theory').textContent = theoryVal;
+        // ----------------------------------------
+
         document.getElementById('real').textContent = todayRecords.length;
 
         const lastTs = db.records.length > 0 ? Math.max(...db.records.map(r => r.ts)) : 0;
@@ -159,14 +167,14 @@
 
         document.getElementById('record-display').textContent = formatTime(db.bestRecord);
 
-        const interval = (24 / db.goal) * 3600;
+        const intervalMs = (24 / db.goal) * 3600;
         const diffSec = Math.floor(currentAbstinenceMs / 1000);
-        const rem = Math.max(interval - diffSec, 0);
+        const rem = Math.max(intervalMs - diffSec, 0);
         
         const label = document.getElementById('next-slot-label');
         const bar = document.getElementById('bar');
         
-        bar.style.width = Math.min((diffSec / interval) * 100, 100) + "%";
+        bar.style.width = Math.min((diffSec / intervalMs) * 100, 100) + "%";
 
         if (rem === 0) {
             label.style.color = "var(--success)";
