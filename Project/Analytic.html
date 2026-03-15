@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NEURO_STIM ANALYTICS v4</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -20,6 +20,7 @@
 
         .header { height: 10vh; display: flex; align-items: center; justify-content: center; flex: none; }
         .logo { font-weight: 900; font-size: 2rem; letter-spacing: 4px; color: var(--accent); text-transform: uppercase; }
+        .logo span { font-weight: 100; opacity: 0.7; }
         
         .stats-summary { 
             display: flex; justify-content: center; gap: 15px; height: 12vh; margin-bottom: 10px; flex: none; 
@@ -36,7 +37,7 @@
 
         .chart-container { 
             flex: 1; min-height: 0; position: relative; 
-            background: #050505; border-radius: 15px; border: 1px solid #222;
+            background: #050505; border-radius: 15px; border: 1px solid #000;
             padding: 15px 5px 5px 5px;
         }
 
@@ -50,7 +51,9 @@
 </head>
 <body>
 
-    <div class="header"><div class="logo">NEURO_STIM <span style="font-weight:100; opacity:0.5">ANALYTIC</span></div></div>
+    <div class="header">
+        <div class="logo">NEURO_STIM <span>ANALYTIC</span></div>
+    </div>
 
     <div class="stats-summary">
         <div class="stat-card">
@@ -82,18 +85,11 @@
         return saved ? JSON.parse(saved) : { records: [] };
     }
 
-    function getDensity(records, isTodayOnly) {
+    // Calcule la densité habituelle (ligne rouge lissée)
+    function getHabitDensity(records) {
         let density = new Array(144).fill(0);
-        const now = new Date();
-        
-        let filtered;
-        if (isTodayOnly) {
-            const todayStr = now.toDateString();
-            filtered = records.filter(r => new Date(r.ts).toDateString() === todayStr);
-        } else {
-            const thirtyDaysAgo = Date.now() - (30 * MS_PER_DAY);
-            filtered = records.filter(r => r.ts >= thirtyDaysAgo);
-        }
+        const thirtyDaysAgo = Date.now() - (30 * MS_PER_DAY);
+        const filtered = records.filter(r => r.ts >= thirtyDaysAgo);
 
         if (filtered.length === 0) return density;
 
@@ -106,9 +102,21 @@
                 density[idx] += weights[i + 3];
             }
         });
+        return density.map(v => Math.min(v / 30, 1.0));
+    }
 
-        if (!isTodayOnly) return density.map(v => Math.min(v / 30, 1.0));
-        return density.map(v => Math.min(v, 1.0));
+    // Récupère uniquement les points précis des logs d'aujourd'hui (sans lissage)
+    function getTodayImpacts(records) {
+        let impacts = new Array(144).fill(0);
+        const todayStr = new Date().toDateString();
+        const filtered = records.filter(r => new Date(r.ts).toDateString() === todayStr);
+        
+        filtered.forEach(r => {
+            const d = new Date(r.ts);
+            const index = Math.floor((d.getHours() * 60 + d.getMinutes()) / 10);
+            impacts[index] = 1; // Un seul point par log
+        });
+        return impacts;
     }
 
     function processStats() {
@@ -116,33 +124,38 @@
         const records = db.records || [];
         const nowTs = Date.now();
 
-        const todayData = getDensity(records, true);
-        const habitData = getDensity(records, false); 
+        const habitData = getHabitDensity(records); 
+        const rawImpacts = getTodayImpacts(records);
         
+        // Positionne le point vert à la hauteur de la ligne rouge correspondante
+        const todayDataOnHabit = rawImpacts.map((val, i) => val === 1 ? habitData[i] : null);
+
         const last15 = records.filter(r => r.ts > (nowTs - (15 * MS_PER_DAY)));
         const prev15 = records.filter(r => r.ts <= (nowTs - (15 * MS_PER_DAY)) && r.ts > (nowTs - (30 * MS_PER_DAY)));
         
         const currentAvg = last15.length / 15;
         const previousAvg = prev15.length / 15;
 
+        const oldestTs = records.length > 0 ? Math.min(...records.map(r => r.ts)) : nowTs;
+        const historyAgeDays = (nowTs - oldestTs) / MS_PER_DAY;
+
         document.getElementById('today-total').textContent = records.filter(r => new Date(r.ts).toDateString() === new Date().toDateString()).length;
         document.getElementById('avg-total').textContent = currentAvg.toFixed(1);
 
         const trendEl = document.getElementById('trend-val');
-        if (previousAvg > 0) {
+        if (historyAgeDays > 22 && previousAvg > 0) {
             const diff = ((currentAvg - previousAvg) / previousAvg) * 100;
             const sign = diff > 0 ? '↑' : '↓';
             trendEl.textContent = `${sign}${Math.abs(diff).toFixed(0)}%`;
             trendEl.style.color = diff > 0 ? 'var(--danger)' : 'var(--success)';
             trendEl.style.background = "rgba(255,255,255,0.05)";
         } else {
-            // Sécurité : Affiche "NEW" si pas de données de comparaison
             trendEl.textContent = "NEW";
             trendEl.style.color = "#888";
             trendEl.style.background = "transparent";
         }
 
-        renderChart(todayData, habitData);
+        renderChart(todayDataOnHabit, habitData);
     }
 
     function renderChart(today, habits) {
@@ -159,23 +172,23 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Réel',
+                        label: 'Impacts',
                         data: today,
                         borderColor: '#00ffa3',
-                        borderWidth: 3,
-                        borderDash: [5, 5],
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 0
+                        backgroundColor: '#00ffa3',
+                        showLine: false, // Pas de ligne verte
+                        pointRadius: 6,  // Points nets
+                        pointHoverRadius: 8,
+                        z: 10 // S'assure que les points sont au premier plan
                     },
                     {
                         label: 'Habitude',
                         data: habits,
                         borderColor: '#ff2d55',
-                        borderWidth: 2,
+                        borderWidth: 1.5,
                         borderDash: [5, 5],
                         tension: 0.4,
-                        fill: true,
+                        fill: false,
                         pointRadius: 0
                     }
                 ]
@@ -183,13 +196,13 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                layout: { padding: { bottom: 10 } },
+                layout: { padding: { bottom: 10, top: 10 } },
                 plugins: { legend: { display: false } },
                 scales: {
                     y: { 
                         beginAtZero: true, 
                         min: 0, max: 1.0,
-                        grid: { color: '#222', drawBorder: false }, 
+                        grid: { color: '#444', drawBorder: false }, 
                         ticks: { 
                             stepSize: 0.1, color: '#fff', 
                             font: { size: 10, family: 'JetBrains Mono', weight: 'bold' },
