@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NEURO_STIM RYTHME v43</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #050505; --accent: #4deeea; --danger: #ff2d55; --success: #00ffa3; --text: #ffffff;
@@ -14,7 +14,10 @@
 
         .header { padding: 90px 30px 30px 30px; border-bottom: 1px solid #1a1a1c; text-align: center; flex: none; }
         .logo { font-weight: 900; font-size: 2.5rem; letter-spacing: 4px; color: var(--accent); }
+        .logo span { font-weight: 100; opacity: 0.7; }
 
+
+        /* Content ne prend que sa place pour laisser le reste au footer */
         .content { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px; padding: 20px; }
 
         .timer-section { text-align: center; width: 100%; order: 1; }
@@ -25,7 +28,7 @@
         #next-slot-label { font-weight: 900; font-size: 0.9rem; letter-spacing: 1px; color: var(--danger); }
 
         .stats-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; width: 100%; max-width: 1000px; text-align: center; align-items: center; order: 2; }
-        .label { font-size: 0.65rem; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .label { font-size: 0.65rem; color: #999;  font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; display: block; }
         .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(2rem, 6vw, 4rem); font-weight: 900; }
         .record-box { border: 1px solid var(--accent); padding: 15px; border-radius: 12px; min-width: 220px; background: rgba(77, 238, 234, 0.05); }
         .record-val { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; color: var(--accent); font-weight: 900; }
@@ -45,6 +48,7 @@
         }
         .log-circle:active { transform: scale(0.92); }
 
+        /* Distribution automatique de l'espace pour centrer le LOG */
         .footer-tools { 
             flex: 1; 
             display: flex; 
@@ -54,12 +58,12 @@
             padding-bottom: 60px; 
             order: 3; 
         }
-        .btn-back { padding: 12px 30px; border: 1px solid #333; background: #111; color: #fff; border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer; text-decoration: none; flex: none; }
+        .btn-back { padding: 12px 30px; border: 1px solid #444; background: #111; color: #fff; border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer; text-decoration: none; flex: none; }
     </style>
 </head>
 <body>
 
-    <div class="header"><div class="logo">NEURO_STIM <span style="font-weight:100; opacity:0.5">RYTHME</span></div></div>
+    <div class="header"><div class="logo">NEURO_STIM <span>RYTHME</span></div></div>
 
     <div class="content">
         <div class="timer-section">
@@ -137,17 +141,7 @@
         const todayStr = new Date().toDateString();
         const todayRecords = db.records.filter(r => new Date(r.ts).toDateString() === todayStr);
         
-        // --- MODIFICATION DU CALCUL THÉORIQUE ---
-        // On calcule le temps passé en heures (ex: 14.5 pour 14h30)
-        const hoursPast = new Date().getHours() + new Date().getMinutes()/60;
-        // On définit l'intervalle idéal (ex: 2h pour un objectif de 12)
-        const interval = 24 / db.goal;
-        // Le compteur démarre à 1 et ne peut pas dépasser l'objectif (db.goal)
-        const theoryVal = Math.min(Math.floor(hoursPast / interval) + 1, db.goal);
-        
-        document.getElementById('theory').textContent = theoryVal;
-        // ----------------------------------------
-
+        document.getElementById('theory').textContent = Math.floor((db.goal / 24) * (new Date().getHours() + new Date().getMinutes()/60))+1;
         document.getElementById('real').textContent = todayRecords.length;
 
         const lastTs = db.records.length > 0 ? Math.max(...db.records.map(r => r.ts)) : 0;
@@ -167,14 +161,14 @@
 
         document.getElementById('record-display').textContent = formatTime(db.bestRecord);
 
-        const intervalMs = (24 / db.goal) * 3600;
+        const interval = (24 / db.goal) * 3600;
         const diffSec = Math.floor(currentAbstinenceMs / 1000);
-        const rem = Math.max(intervalMs - diffSec, 0);
+        const rem = Math.max(interval - diffSec, 0);
         
         const label = document.getElementById('next-slot-label');
         const bar = document.getElementById('bar');
         
-        bar.style.width = Math.min((diffSec / intervalMs) * 100, 100) + "%";
+        bar.style.width = Math.min((diffSec / interval) * 100, 100) + "%";
 
         if (rem === 0) {
             label.style.color = "var(--success)";
