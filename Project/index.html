@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEURO_STIM APEX v23</title>
+    <title>NEURO_STIM APEX v24</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -88,31 +88,24 @@
         .btn-action { width: 100%; padding: 18px; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; margin-top: 10px; }
         .btn-reset { background: #330000; color: #ff2d55; border: 1px solid #550000; margin-top: 40px; font-size: 0.7rem; }
 
-        /* --- ADAPTATION MOBILE --- */
         @media (max-width: 600px) {
             header { padding: 10px 15px; flex-wrap: wrap; gap: 10px; justify-content: center; }
             .logo { font-size: 0.9rem; letter-spacing: 1px; }
             .v-btn { padding: 5px 8px; font-size: 0.55rem; }
-
             .app-content { padding: 10px 15px; gap: 15px; }
             .stats-grid { gap: 10px; }
             .stat-label { font-size: 0.55rem; margin-bottom: 5px; }
             .stat-value { font-size: 1.4rem; }
-
             .period-tabs { margin-bottom: 10px; gap: 5px; }
             .tab { padding: 8px 12px; font-size: 0.6rem; }
-
             footer { padding: 0 15px 20px 15px; gap: 10px; }
             .sos-box { width: 70px; height: 60px; font-size: 0.7rem; border-radius: 8px; }
             .log-circle { width: 85px; height: 85px; font-size: 0.8rem; border-width: 3px; }
             .chrono-section { min-width: 90px; }
             .chrono-time { font-size: 1.1rem; }
             .health-hint { font-size: 0.5rem; }
-
             #settings { padding: 20px; }
-            .modal h2 { font-size: 1.2rem; margin-bottom: 15px; }
             input { padding: 10px; margin-bottom: 10px; font-size: 0.9rem; }
-            .btn-action { padding: 14px; font-size: 0.8rem; }
         }
     </style>
 </head>
@@ -180,7 +173,7 @@
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
                 <button onclick="exportData()" style="padding:15px; background:#222; color:#fff; border:none; border-radius:10px;">EXPORT</button>
-                <button onclick="document.getElementById('file-in').click()" style="padding:15px; background:#222; color:#fff; border-none; border-radius:10px;">IMPORT</button>
+                <button onclick="document.getElementById('file-in').click()" style="padding:15px; background:#222; color:#fff; border:none; border-radius:10px;">IMPORT</button>
             </div>
             <input type="file" id="file-in" style="display:none" onchange="importData(event)">
 
@@ -191,7 +184,7 @@
     </div>
 
 <script>
-    let db = { records: [], goal: 14, sosMin: 15, packPrice: 19.5, packCount: 30 };
+    let db = { records: [], goal: 14, sosMin: 15, packPrice: 19.5, packCount: 30, bestRecord: 0 };
     let chart = null;
     let currentPeriod = '7j';
     let currentView = 'cig'; 
@@ -211,7 +204,7 @@
 
     function init() {
         const saved = localStorage.getItem('neuro_stim_apex_final');
-        if (saved) db = JSON.parse(saved);
+        if (saved) db = { ...db, ...JSON.parse(saved) };
         refresh();
         setInterval(tick, 1000);
     }
@@ -269,23 +262,53 @@
         const ctx = document.getElementById('apexChart').getContext('2d');
         if (chart) chart.destroy();
         const labels = [], data = [], goals = [];
+        
         for (let i = days - 1; i >= 0; i--) {
             let d = new Date(); d.setDate(new Date().getDate() - i);
-            labels.push(days === 365 ? (i%60===0 ? d.toLocaleDateString() : '') : d.getDate());
+            
+            // Correction labels : on utilise une chaîne simple pour éviter les bugs de parsing
+            if (days === 365) {
+                // Modulo 60 pour viser ~6 labels bien espacés
+                if (i % 60 === 0) {
+                    const m = d.getMonth() + 1;
+                    labels.push(d.getDate() + "/" + m);
+                } else {
+                    labels.push("");
+                }
+            } else {
+                labels.push(d.getDate());
+            }
+
             const dayData = map[d.toDateString()];
             data.push(dayData ? (currentView === 'cig' ? dayData.count : dayData.cash) : 0);
             if (currentView === 'cig') goals.push(dayData ? dayData.goal : db.goal);
         }
+
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [{ data: data, borderColor: currentView === 'cig' ? '#4deeea' : '#00ffa3', borderWidth: 3, tension: 0.4, fill: false, pointRadius: days > 30 ? 0 : 4 },
-                /* LIGNE OBJECTIF ROUGE PLUS VISIBLE ICI */
-                { data: currentView === 'cig' ? goals : [], borderColor: 'rgba(255, 45, 85, 0.8)', borderDash: [5, 5], borderWidth: 2, pointRadius: 0 }]
+                datasets: [
+                    { data: data, borderColor: currentView === 'cig' ? '#4deeea' : '#00ffa3', borderWidth: 3, tension: 0.4, fill: false, pointRadius: days > 30 ? 0 : 4 },
+                    { data: currentView === 'cig' ? goals : [], borderColor: 'rgba(255, 45, 85, 0.3)', borderDash: [5, 5], borderWidth: 1, pointRadius: 0 }
+                ]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, grid: { color: '#555' }, ticks: { color: '#fff' } }, x: { grid: { display: false }, ticks: { color: '#fff' } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                animation: false, // Désactivé pour assurer l'affichage immédiat
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: '#1a1a1a' }, ticks: { color: '#fff' } }, 
+                    x: { 
+                        grid: { display: false }, 
+                        ticks: { 
+                            color: '#fff',
+                            autoSkip: false, // On gère le skip nous-mêmes avec les chaînes vides
+                            maxRotation: 0
+                        } 
+                    } 
+                }
             }
         });
     }
@@ -340,7 +363,7 @@
     }
 
     window.exportData = () => { const blob = new Blob([JSON.stringify(db)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `neuro_stim_backup.json`; a.click(); };
-    window.importData = (e) => { const reader = new FileReader(); reader.onload = (f) => { db = JSON.parse(f.target.result); save(); refresh(); ui('settings', false); }; reader.readAsText(e.target.files[0]); };
+    window.importData = (e) => { const reader = new FileReader(); reader.onload = (f) => { db = { ...db, ...JSON.parse(f.target.result) }; save(); refresh(); ui('settings', false); }; reader.readAsText(e.target.files[0]); };
     window.runSOS = () => {
         playSound(880);
         const btn = document.getElementById('sos-btn'); btn.style.pointerEvents = 'none';
