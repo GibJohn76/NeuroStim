@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEURO_STIM RYTHME v43</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505; --accent: #4deeea; --danger: #ff2d55; --success: #00ffa3; --text: #ffffff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+        .header { padding: 90px 30px 30px 30px; border-bottom: 1px solid #1a1a1c; text-align: center; flex: none; }
+        .logo { font-weight: 900; font-size: 2.5rem; letter-spacing: 4px; color: var(--accent); }
+        .logo span { font-weight: 100; opacity: 0.7; }
+
+        .content { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px; padding: 20px; }
+
+        .timer-section { text-align: center; width: 100%; order: 1; }
+        .abstinence-label { font-size: 0.8rem; color: var(--accent); font-weight: 900; margin-bottom: 10px; display: block; }
+        #live-abstinence { font-family: 'JetBrains Mono', monospace; font-size: clamp(4rem, 18vw, 12rem); line-height: 0.9; font-weight: 900; margin-bottom: 20px; }
+        .progress-container { width: 100%; max-width: 500px; height: 12px; background: #111; border-radius: 6px; margin: 20px auto; border: 1px solid #222; overflow: hidden; }
+        #bar { width: 0%; height: 100%; background: var(--danger); transition: width 1s linear; }
+        #next-slot-label { font-weight: 900; font-size: 0.9rem; letter-spacing: 1px; color: var(--danger); }
+
+        .stats-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; width: 100%; max-width: 1000px; text-align: center; align-items: center; order: 2; }
+        .label { font-size: 0.65rem; color: #999;  font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(2rem, 6vw, 4rem); font-weight: 900; }
+        .record-box { border: 1px solid var(--accent); padding: 15px; border-radius: 12px; min-width: 220px; background: rgba(77, 238, 234, 0.05); }
+        .record-val { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; color: var(--accent); font-weight: 900; }
+        
+        #btn-validate { 
+            margin-top: 15px; background: var(--accent); color: #000; border: none; 
+            padding: 10px; border-radius: 6px; font-weight: 900; font-size: 0.65rem; 
+            cursor: pointer; width: 100%; transition: transform 0.1s; display: none;
+        }
+
+        .log-circle {
+            width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--danger);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--danger); font-weight: 900; font-size: 1rem; cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 45, 85, 0.15); transition: 0.2s;
+            text-align: center; flex: none;
+        }
+        .log-circle:active { transform: scale(0.92); }
+
+        .footer-tools { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: space-around; 
+            padding-bottom: 60px; 
+            order: 3; 
+        }
+        .btn-back { padding: 12px 30px; border: 1px solid #444; background: #111; color: #fff; border-radius: 10px; font-weight: 900; font-size: 0.8rem; cursor: pointer; text-decoration: none; flex: none; }
+
+        /* --- CORRECTIFS RESPONSIVE MOBILE --- */
+        @media (max-width: 600px) {
+            .header { padding: 40px 20px 20px 20px; }
+            .logo { font-size: 1.8rem; letter-spacing: 2px; }
+
+            .content { gap: 20px; padding: 10px 20px; }
+            #live-abstinence { font-size: clamp(3rem, 15vw, 5rem); margin-bottom: 10px; }
+            .progress-container { margin: 10px auto; height: 8px; }
+            #next-slot-label { font-size: 0.7rem; }
+
+            .stats-row { gap: 10px; }
+            .label { font-size: 0.5rem; letter-spacing: 1px; margin-bottom: 5px; }
+            .val { font-size: 1.8rem; }
+            .record-box { min-width: 140px; padding: 10px; }
+            .record-val { font-size: 1.1rem; }
+            #btn-validate { padding: 8px; font-size: 0.55rem; margin-top: 8px; }
+
+            .footer-tools { padding-bottom: 20px; }
+            .log-circle { width: 90px; height: 90px; font-size: 0.8rem; border-width: 3px; }
+            .btn-back { padding: 10px 20px; font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header"><div class="logo">NEURO_STIM <span>RYTHME</span></div></div>
+
+    <div class="content">
+        <div class="timer-section">
+            <span class="abstinence-label">Abstinence Actuelle</span>
+            <div id="live-abstinence">00:00:00</div>
+            <div class="progress-container"><div id="bar"></div></div>
+            <span id="next-slot-label">PROCHAIN SLOT DANS --:--</span>
+        </div>
+
+        <div class="stats-row">
+            <div><span class="label">Théorie</span><div class="val" id="theory" style="color:var(--accent)">0</div></div>
+            <div class="record-box">
+                <span class="label" style="font-size: 0.55rem; color:var(--accent)">⭐️ Record d'Abstinence</span>
+                <div class="record-val" id="record-display">00:00:00</div>
+                <button id="btn-validate" onclick="claimRecord()">ÉTABLIR NOUVEAU RECORD</button>
+            </div>
+            <div><span class="label">Réel</span><div class="val" id="real">0</div></div>
+        </div>
+    </div>
+
+    <div class="footer-tools">
+        <div class="log-circle" onclick="addEntry()">LOG<br>CIG</div>
+        <a href="index.html" class="btn-back">RETOUR</a>
+    </div>
+
+<script>
+    let db = { records: [], goal: 12, bestRecord: 0, packPrice: 19.5, packCount: 30 };
+    let currentAbstinenceMs = 0;
+    let audioCtx = null;
+
+    function playSound(freq) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+        o.start(); o.stop(audioCtx.currentTime + 0.3);
+    }
+    
+    function load() {
+        const saved = localStorage.getItem('neuro_stim_apex_final');
+        if (saved) {
+            const data = JSON.parse(saved);
+            db = { ...db, ...data };
+        }
+        update();
+    }
+
+    function save() { localStorage.setItem('neuro_stim_apex_final', JSON.stringify(db)); }
+
+    function addEntry() {
+        playSound(220);
+        db.records.push({ ts: Date.now(), p: (db.packPrice / db.packCount), g: db.goal });
+        save(); 
+        update();
+    }
+
+    function formatTime(ms) {
+        if (!ms || ms < 0) return "00:00:00";
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
+
+    function claimRecord() {
+        db.bestRecord = currentAbstinenceMs;
+        save(); update();
+    }
+
+    function update() {
+        const now = Date.now();
+        const todayStr = new Date().toDateString();
+        const todayRecords = db.records.filter(r => new Date(r.ts).toDateString() === todayStr);
+        
+        document.getElementById('theory').textContent = Math.floor((db.goal / 24) * (new Date().getHours() + new Date().getMinutes()/60))+1;
+        document.getElementById('real').textContent = todayRecords.length;
+
+        const lastTs = db.records.length > 0 ? Math.max(...db.records.map(r => r.ts)) : 0;
+        
+        if (lastTs > 0) {
+            currentAbstinenceMs = now - lastTs;
+            document.getElementById('live-abstinence').textContent = formatTime(currentAbstinenceMs);
+            if (currentAbstinenceMs > db.bestRecord) {
+                document.getElementById('btn-validate').style.display = 'block';
+            } else {
+                document.getElementById('btn-validate').style.display = 'none';
+            }
+        } else {
+            document.getElementById('live-abstinence').textContent = "00:00:00";
+            document.getElementById('btn-validate').style.display = 'none';
+        }
+
+        document.getElementById('record-display').textContent = formatTime(db.bestRecord);
+
+        const interval = (24 / db.goal) * 3600;
+        const diffSec = Math.floor(currentAbstinenceMs / 1000);
+        const rem = Math.max(interval - diffSec, 0);
+        
+        const label = document.getElementById('next-slot-label');
+        const bar = document.getElementById('bar');
+        
+        bar.style.width = Math.min((diffSec / interval) * 100, 100) + "%";
+
+        if (rem === 0) {
+            label.style.color = "var(--success)";
+            bar.style.backgroundColor = "var(--success)";
+            label.textContent = "PROCHAIN SLOT DANS 00:00 (PRÊT)";
+        } else {
+            label.style.color = "var(--danger)";
+            bar.style.backgroundColor = "var(--danger)";
+            const m = Math.floor(rem/60).toString().padStart(2,'0');
+            const s = Math.floor(rem%60).toString().padStart(2,'0');
+            label.textContent = `PROCHAIN SLOT DANS ${m}:${s}`;
+        }
+    }
+
+    setInterval(update, 1000);
+    window.onload = load;
+    window.addEventListener('storage', load);
+</script>
+</body>
+</html>
