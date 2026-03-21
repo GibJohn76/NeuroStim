@@ -199,11 +199,15 @@
                             maxRotation: 0, autoSkip: false,
                             callback: function(value, index) {
                                 const label = this.getLabelForValue(value);
-                                if (index === 143) return '24h'; // Affiche la fin
+                                if (index === 143) return '24h'; 
                                 if (!label) return '';
                                 const hour = parseInt(label);
-                                const step = isMobile ? 4 : 2;
-                                return (hour % step === 0) ? label : '';
+                                
+                                // RESTAURATION DES TOUTES LES HEURES SUR DESKTOP
+                                if (!isMobile) return label;
+
+                                // LIMITATION UNIQUEMENT SUR MOBILE (TOUTES LES 4H)
+                                return (hour % 4 === 0) ? label : '';
                             }
                         } 
                     }
