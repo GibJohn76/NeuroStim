@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Traducteur de Sous-Titres Pro</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        h1 { color: #1a73e8; font-size: 24px; margin-bottom: 20px; text-align: center; }
+        .drop-zone { border: 2px dashed #1a73e8; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; color: #555; transition: 0.3s; }
+        .drop-zone:hover { background: #e8f0fe; }
+        #status { margin-top: 20px; font-weight: bold; text-align: center; }
+        .progress-container { width: 100%; background: #eee; height: 10px; border-radius: 5px; margin-top: 15px; display: none; }
+        #progress-bar { width: 0%; height: 100%; background: #34a853; border-radius: 5px; transition: width 0.3s; }
+        button { background: #1a73e8; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 20px; display: none; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Traducteur de Sous-Titres (EN → FR)</h1>
+    <div id="drop-zone" class="drop-zone">Cliquez ou glissez votre fichier .srt ici</div>
+    <input type="file" id="file-input" style="display:none" accept=".srt,.txt">
+    
+    <div id="status">Prêt</div>
+    <div class="progress-container" id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
+    
+    <button id="translate-btn">Démarrer la Traduction Automatique</button>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const status = document.getElementById('status');
+    const translateBtn = document.getElementById('translate-btn');
+    const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
+    
+    let fileContent = "";
+    let fileName = "";
+
+    dropZone.onclick = () => fileInput.click();
+    fileInput.onchange = e => handleFile(e.target.files[0]);
+    dropZone.ondragover = e => { e.preventDefault(); dropZone.style.background = "#e8f0fe"; };
+    dropZone.ondrop = e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); };
+
+    function handleFile(file) {
+        if (!file) return;
+        fileName = file.name;
+        const reader = new FileReader();
+        reader.onload = e => {
+            fileContent = e.target.result;
+            status.innerText = "Fichier chargé : " + fileName;
+            translateBtn.style.display = "block";
+        };
+        reader.readAsText(file);
+    }
+
+    async function translateText(text) {
+        try {
+            // Utilisation d'une API de traduction gratuite (MyMemory)
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|fr`);
+            const data = await res.json();
+            return data.responseData.translatedText;
+        } catch (e) { return text; }
+    }
+
+    translateBtn.onclick = async () => {
+        translateBtn.disabled = true;
+        progressContainer.style.display = "block";
+        
+        const lines = fileContent.split(/\r?\n/);
+        let result = [];
+        let batch = [];
+        let total = lines.length;
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            
+            // Si la ligne est un numéro ou un timing, on garde tel quel
+            if (line.match(/^\d+$/) || line.match(/-->/)) {
+                result.push(lines[i]);
+            } 
+            // Si c'est du texte, on le traduit
+            else if (line !== "") {
+                status.innerText = `Traduction en cours... (${Math.round((i/total)*100)}%)`;
+                progressBar.style.width = (i/total)*100 + "%";
+                const translated = await translateText(line);
+                result.push(translated);
+            } else {
+                result.push("");
+            }
+            
+            // Petit délai pour ne pas saturer l'API gratuite
+            if (i % 5 === 0) await new Promise(r => setTimeout(r, 100));
+        }
+
+        const finalContent = result.join("\n");
+        const blob = new Blob([finalContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "FR_" + fileName;
+        a.click();
+        
+        status.innerText = "Terminé ! Le fichier a été téléchargé.";
+        translateBtn.disabled = false;
+        progressBar.style.width = "100%";
+    };
+</script>
+</body>
+</html>
