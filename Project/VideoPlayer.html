@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur Vidéo MP4 Local</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        accent: '#3b82f6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for playlist */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-100 min-h-screen flex flex-col justify-between selection:bg-accent selection:text-white">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-accent/10 border border-accent/20 text-accent p-2.5 rounded-xl shadow-inner">
+                    <i class="fa-solid fa-play text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Lecteur MP4 Local</h1>
+                    <p class="text-xs text-slate-400">Sélectionnez un dossier contenant vos vidéos</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <!-- Modern File System Access API Button -->
+                <button id="select-dir-btn" class="flex items-center gap-2 bg-accent hover:bg-blue-600 transition text-white px-4 py-2.5 rounded-xl font-medium text-sm shadow-lg shadow-blue-500/20 active:scale-95">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>Ouvrir un dossier</span>
+                </button>
+                <!-- Fallback input directory picker -->
+                <input type="file" id="fallback-input" webkitdirectory directory multiple class="hidden">
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Video Player Section (2 columns on large screens) -->
+        <div class="lg:col-span-2 flex flex-col space-y-4">
+            <div class="relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 aspect-video flex items-center justify-center group">
+                
+                <!-- Video Element -->
+                <video id="video-player" class="w-full h-full object-contain cursor-pointer" poster="https://placehold.co/1280x720/0f172a/3b82f6?text=Aucune+vid%C3%A9o+s%C3%A9lectionn%C3%A9e"></video>
+                
+                <!-- Center Play/Pause Overlay Indicator -->
+                <div id="center-play-icon" class="absolute pointer-events-none transition-opacity duration-300 opacity-0 bg-black/50 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl backdrop-blur-sm">
+                    <i class="fa-solid fa-play ml-1"></i>
+                </div>
+
+                <!-- Custom Controls Bar Overlay -->
+                <div id="video-controls" class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2">
+                    
+                    <!-- Progress Bar -->
+                    <div class="flex items-center gap-3">
+                        <span id="current-time" class="text-xs text-slate-300 font-mono w-10 text-right">00:00</span>
+                        <input type="range" id="progress-bar" value="0" min="0" max="100" step="0.1" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-accent">
+                        <span id="duration" class="text-xs text-slate-300 font-mono w-10">00:00</span>
+                    </div>
+
+                    <!-- Control Buttons Row -->
+                    <div class="flex items-center justify-between pt-1">
+                        <div class="flex items-center space-x-4">
+                            <!-- Play / Pause Button -->
+                            <button id="play-pause-btn" class="text-white hover:text-accent transition text-lg w-8 h-8 flex items-center justify-center">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                            <!-- Skip Back 10s -->
+                            <button id="skip-back-btn" class="text-slate-300 hover:text-white transition text-sm" title="Reculer de 10s">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                            <!-- Skip Forward 10s -->
+                            <button id="skip-forward-btn" class="text-slate-300 hover:text-white transition text-sm" title="Avancer de 10s">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                            <!-- Volume Controls -->
+                            <div class="flex items-center space-x-2 group/vol">
+                                <button id="mute-btn" class="text-slate-300 hover:text-white transition text-sm">
+                                    <i class="fa-solid fa-volume-high"></i>
+                                </button>
+                                <input type="range" id="volume-bar" value="1" min="0" max="1" step="0.05" class="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-accent">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-4">
+                            <!-- Playback Speed Dropdown -->
+                            <select id="speed-select" class="bg-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 border border-slate-700 focus:outline-none focus:border-accent cursor-pointer">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1.0x</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2.0x</option>
+                            </select>
+                            <!-- Fullscreen Button -->
+                            <button id="fullscreen-btn" class="text-slate-300 hover:text-white transition text-lg w-8 h-8 flex items-center justify-center">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Video Info Panel -->
+            <div class="bg-cardbg rounded-2xl p-4 border border-slate-800/80 shadow-lg flex items-center justify-between">
+                <div>
+                    <h2 id="now-playing-title" class="font-semibold text-slate-200 text-base truncate max-w-md">Aucune vidéo sélectionnée</h2>
+                    <p id="now-playing-subtitle" class="text-xs text-slate-400">Chargez un dossier pour commencer</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="prev-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-backward-step mr-1"></i> Précédente
+                    </button>
+                    <button id="next-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        Suivante <i class="fa-solid fa-forward-step ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Playlist Section (1 column on large screens) -->
+        <div class="lg:col-span-1 bg-cardbg rounded-2xl border border-slate-800/80 shadow-lg flex flex-col h-[500px] lg:h-auto overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/30">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-list-ul text-accent"></i>
+                    <h3 class="font-semibold text-sm">Liste de lecture</h3>
+                </div>
+                <span id="video-count-badge" class="bg-slate-800 text-slate-400 text-xs px-2.5 py-1 rounded-full font-mono">0 fichiers</span>
+            </div>
+
+            <!-- Scrollable Playlist Container -->
+            <div id="playlist-container" class="flex-grow overflow-y-auto p-3 space-y-2">
+                <!-- Empty state placeholder -->
+                <div id="playlist-empty" class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500 space-y-3">
+                    <i class="fa-solid fa-folder-open text-4xl text-slate-600"></i>
+                    <p class="text-xs">Aucun fichier MP4 trouvé. Veuillez sélectionner un dossier contenant des vidéos.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        Lecteur Vidéo Local HTML5 &bull; Conçu avec Tailwind CSS
+    </footer>
+
+    <script>
+        // State variables
+        let videoList = [];
+        let currentIndex = -1;
+        let isUserDraggingProgress = false;
+
+        // DOM Elements
+        const selectDirBtn = document.getElementById('select-dir-btn');
+        const fallbackInput = document.getElementById('fallback-input');
+        const videoPlayer = document.getElementById('video-player');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const centerPlayIcon = document.getElementById('center-play-icon');
+        const progressBar = document.getElementById('progress-bar');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const muteBtn = document.getElementById('mute-btn');
+        const volumeBar = document.getElementById('volume-bar');
+        const speedSelect = document.getElementById('speed-select');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const skipBackBtn = document.getElementById('skip-back-btn');
+        const skipForwardBtn = document.getElementById('skip-forward-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const playlistContainer = document.getElementById('playlist-container');
+        const playlistEmpty = document.getElementById('playlist-empty');
+        const videoCountBadge = document.getElementById('video-count-badge');
+        const nowPlayingTitle = document.getElementById('now-playing-title');
+        const nowPlayingSubtitle = document.getElementById('now-playing-subtitle');
+
+        // Format seconds to mm:ss
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        // Folder selection handling
+        selectDirBtn.addEventListener('click', async () => {
+            if (window.showDirectoryPicker) {
+                try {
+                    const dirHandle = await window.showDirectoryPicker();
+                    await scanDirectory(dirHandle);
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn("Directory picker error, falling back to input", err);
+                        fallbackInput.click();
+                    }
+                }
+            } else {
+                fallbackInput.click();
+            }
+        });
+
+        fallbackInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            const mp4Files = files.filter(file => file.name.toLowerCase().endsWith('.mp4'));
+            
+            videoList = mp4Files.map(file => ({
+                name: file.name,
+                file: file,
+                url: URL.createObjectURL(file)
+            }));
+            
+            renderPlaylist();
+            if (videoList.length > 0) {
+                loadVideo(0);
+            }
+        });
+
+        async function scanDirectory(dirHandle) {
+            videoList = [];
+            for await (const entry of dirHandle.values()) {
+                if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp4')) {
+                    const file = await entry.getFile();
+                    videoList.push({
+                        name: file.name,
+                        file: file,
+                        url: URL.createObjectURL(file)
+                    });
+                }
+            }
+            renderPlaylist();
+            if (videoList.length > 0) {
+                loadVideo(0);
+            } else {
+                alertBox("Aucun fichier .mp4 trouvé dans ce dossier.");
+            }
+        }
+
+        // Simple custom notification message box (avoids native alert)
+        function alertBox(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-5 right-5 z-50 bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce';
+            alertDiv.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-400"></i><span>${message}</span>`;
+            document.body.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 4000);
+        }
+
+        // Render playlist in the sidebar
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            videoCountBadge.textContent = `${videoList.length} fichier${videoList.length > 1 ? 's' : ''}`;
+
+            if (videoList.length === 0) {
+                playlistContainer.appendChild(playlistEmpty);
+                playlistEmpty.classList.remove('hidden');
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                return;
+            }
+
+            playlistEmpty.classList.add('hidden');
+
+            videoList.forEach((video, index) => {
+                const item = document.createElement('div');
+                const isCurrent = index === currentIndex;
+                item.className = `group flex items-center justify-between p-3 rounded-xl cursor-pointer transition border ${
+                    isCurrent 
+                        ? 'bg-accent/10 border-accent/40 text-accent font-medium shadow-sm' 
+                        : 'bg-slate-800/40 border-slate-800/80 hover:bg-slate-800 text-slate-300'
+                }`;
+                
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isCurrent ? 'bg-accent text-white' : 'bg-slate-800 text-slate-400 group-hover:bg-slate-700'}">
+                            <i class="fa-solid ${isCurrent && !videoPlayer.paused ? 'fa-volume-high animate-pulse' : 'fa-play'} text-xs"></i>
+                        </div>
+                        <span class="text-xs truncate" title="${video.name}">${video.name}</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 font-mono pl-2 shrink-0">MP4</span>
+                `;
+
+                item.addEventListener('click', () => loadVideo(index));
+                playlistContainer.appendChild(item);
+            });
+
+            prevBtn.disabled = currentIndex <= 0;
+            nextBtn.disabled = currentIndex >= videoList.length - 1;
+        }
+
+        // Load specific video by index
+        function loadVideo(index) {
+            if (index < 0 || index >= videoList.length) return;
+            currentIndex = index;
+            const currentVideo = videoList[currentIndex];
+
+            videoPlayer.src = currentVideo.url;
+            videoPlayer.load();
+            videoPlayer.play().catch(e => console.log("Autoplay prevented:", e));
+
+            nowPlayingTitle.textContent = currentVideo.name;
+            nowPlayingSubtitle.textContent = `Vidéo ${currentIndex + 1} sur ${videoList.length}`;
+
+            renderPlaylist();
+        }
+
+        // Play / Pause toggle
+        function togglePlayPause() {
+            if (videoList.length === 0) return;
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+            } else {
+                videoPlayer.pause();
+            }
+        }
+
+        videoPlayer.addEventListener('click', togglePlayPause);
+        playPauseBtn.addEventListener('click', togglePlayPause);
+
+        videoPlayer.addEventListener('play', () => {
+            playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            renderPlaylist();
+        });
+
+        videoPlayer.addEventListener('pause', () => {
+            playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            renderPlaylist();
+        });
+
+        // Time updates & Progress bar
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (!isUserDraggingProgress && videoPlayer.duration) {
+                const percent = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                progressBar.value = percent;
+                currentTimeEl.textContent = formatTime(videoPlayer.currentTime);
+            }
+        });
+
+        videoPlayer.addEventListener('loadedmetadata', () => {
+            durationEl.textContent = formatTime(videoPlayer.duration);
+        });
+
+        progressBar.addEventListener('input', () => {
+            isUserDraggingProgress = true;
+            if (videoPlayer.duration) {
+                const time = (progressBar.value / 100) * videoPlayer.duration;
+                currentTimeEl.textContent = formatTime(time);
+            }
+        });
+
+        progressBar.addEventListener('change', () => {
+            isUserDraggingProgress = false;
+            if (videoPlayer.duration) {
+                videoPlayer.currentTime = (progressBar.value / 100) * videoPlayer.duration;
+            }
+        });
+
+        // Skip buttons
+        skipBackBtn.addEventListener('click', () => {
+            videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
+        });
+
+        skipForwardBtn.addEventListener('click', () => {
+            if (videoPlayer.duration) {
+                videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10);
+            }
+        });
+
+        // Volume controls
+        volumeBar.addEventListener('input', (e) => {
+            videoPlayer.volume = e.target.value;
+            videoPlayer.muted = (e.target.value == 0);
+            updateVolumeIcon();
+        });
+
+        muteBtn.addEventListener('click', () => {
+            videoPlayer.muted = !videoPlayer.muted;
+            if (videoPlayer.muted) {
+                volumeBar.value = 0;
+            } else {
+                volumeBar.value = videoPlayer.volume || 1;
+            }
+            updateVolumeIcon();
+        });
+
+        function updateVolumeIcon() {
+            if (videoPlayer.muted || videoPlayer.volume == 0) {
+                muteBtn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+            } else if (videoPlayer.volume < 0.5) {
+                muteBtn.innerHTML = '<i class="fa-solid fa-volume-low"></i>';
+            } else {
+                muteBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+            }
+        }
+
+        // Playback speed
+        speedSelect.addEventListener('change', (e) => {
+            videoPlayer.playbackRate = parseFloat(e.target.value);
+        });
+
+        // Fullscreen toggle
+        fullscreenBtn.addEventListener('click', () => {
+            const container = videoPlayer.parentElement;
+            if (!document.fullscreenElement) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // Previous / Next handlers
+        prevBtn.addEventListener('click', () => {
+            if (currentIndex > 0) {
+                loadVideo(currentIndex - 1);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentIndex < videoList.length - 1) {
+                loadVideo(currentIndex + 1);
+            }
+        });
+
+        // Auto advance to next video on end
+        videoPlayer.addEventListener('ended', () => {
+            if (currentIndex < videoList.length - 1) {
+                loadVideo(currentIndex + 1);
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlayPause();
+            } else if (e.code === 'ArrowLeft') {
+                videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 5);
+            } else if (e.code === 'ArrowRight') {
+                if (videoPlayer.duration) videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 5);
+            }
+        });
+    </script>
+</body>
+</html>
