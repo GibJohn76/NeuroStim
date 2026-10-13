@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineLocal Pro - Lecteur Multimédia Local</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body.cinema-mode {
+            background-color: #000 !important;
+        }
+        body.cinema-mode header, body.cinema-mode footer, body.cinema-mode #playlist-section {
+            opacity: 0.1;
+            transition: opacity 0.3s ease;
+        }
+        body.cinema-mode header:hover, body.cinema-mode footer:hover, body.cinema-mode #playlist-section:hover {
+            opacity: 1;
+        }
+        input[type="range"] {
+            accent-color: #3b82f6;
+        }
+        .hide-cursor {
+            cursor: none !important;
+        }
+    </style>
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-300">
+
+    <!-- En-tête -->
+    <header class="bg-dark-800 border-b border-dark-700 p-4 shadow-md flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 text-white p-2 rounded-xl shadow-lg">
+                <i class="fa-solid fa-play text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">CineLocal Pro</h1>
+                <p class="text-xs text-slate-400">Lecteur Vidéo & Audio Local Intelligent</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <button id="btn-select-folder" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium shadow transition flex items-center space-x-2 cursor-pointer">
+                <i class="fa-solid fa-folder-open"></i>
+                <span>Ouvrir un dossier</span>
+            </button>
+            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden">
+
+            <button id="btn-cinema" class="bg-dark-700 hover:bg-dark-600 text-slate-200 px-3 py-2 rounded-lg transition cursor-pointer" title="Mode Cinéma (C)">
+                <i class="fa-solid fa-film"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Corps principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Section Lecteur -->
+        <div class="lg:col-span-2 flex flex-col space-y-4">
+            
+            <div id="player-container" class="relative bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video flex items-center justify-center border border-dark-700">
+                
+                <div id="no-media-placeholder" class="text-center p-8 z-20">
+                    <i class="fa-solid fa-clapperboard text-5xl text-slate-600 mb-4"></i>
+                    <p class="text-slate-400 font-medium">Aucun dossier sélectionné.</p>
+                    <p class="text-xs text-slate-500 mt-1">Cliquez sur "Ouvrir un dossier" pour charger vos fichiers MP4 et MP3.</p>
+                </div>
+
+                <!-- Visuel spécifique pour les MP3 (Audio) -->
+                <div id="audio-visualizer" class="absolute inset-0 hidden flex flex-col items-center justify-center space-y-4 p-8 bg-gradient-to-br from-dark-800 to-dark-900 z-10">
+                    <div class="w-28 h-28 bg-blue-600/20 border border-blue-500/40 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
+                        <i class="fa-solid fa-music text-5xl text-blue-400"></i>
+                    </div>
+                    <div class="text-center">
+                        <h3 id="audio-title" class="text-base font-bold text-slate-100 truncate max-w-md">Nom du morceau.mp3</h3>
+                        <p class="text-xs text-slate-400 mt-1">Lecture Audio en cours</p>
+                    </div>
+                </div>
+
+                <video id="video-player" class="w-full h-full object-contain absolute inset-0 z-0" crossorigin="anonymous">
+                    <track id="video-track" kind="subtitles" srclang="fr" label="Français" default>
+                </video>
+
+                <div id="video-overlay" class="absolute inset-0 z-10 hidden cursor-pointer"></div>
+
+                <!-- Barre de contrôles -->
+                <div id="video-controls" class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-4 flex flex-col space-y-2 transition-opacity duration-300 opacity-100 z-30">
+                    
+                    <div class="flex items-center space-x-2 group/progress relative">
+                        <div id="progress-container" class="w-full h-2 bg-slate-700/60 rounded-full cursor-pointer relative overflow-hidden">
+                            <div id="buffer-bar" class="absolute top-0 left-0 bottom-0 bg-slate-500/40 w-0 pointer-events-none"></div>
+                            <div id="progress-bar" class="absolute top-0 left-0 bottom-0 bg-blue-500 w-0 pointer-events-none"></div>
+                        </div>
+                        <span id="time-tooltip" class="absolute -top-8 bg-black/80 text-white text-xs px-2 py-1 rounded hidden pointer-events-none">00:00</span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-sm">
+                        
+                        <div class="flex items-center space-x-4">
+                            <button id="btn-play-pause" class="text-white hover:text-blue-400 text-lg transition cursor-pointer">
+                                <i class="fa-solid fa-play" id="icon-play-pause"></i>
+                            </button>
+                            <button id="btn-restart" class="text-slate-300 hover:text-white transition cursor-pointer" title="Recommencer">
+                                <i class="fa-solid fa-backward-step"></i>
+                            </button>
+                            <div class="flex items-center space-x-2 group/volume">
+                                <button id="btn-mute" class="text-slate-300 hover:text-white transition cursor-pointer">
+                                    <i class="fa-solid fa-volume-high" id="icon-volume"></i>
+                                </button>
+                                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <div class="text-xs text-slate-300 font-mono">
+                                <span id="current-time">00:00</span> / <span id="duration">00:00</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-3">
+                            <div class="relative" id="filters-wrapper">
+                                <button id="btn-filters-toggle" class="text-slate-300 hover:text-white transition cursor-pointer" title="Filtres & Effets">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                </button>
+                                <div id="filters-menu" class="absolute bottom-full right-0 mb-2 w-48 bg-dark-800 border border-dark-700 rounded-xl p-3 shadow-xl hidden flex flex-col space-y-2 z-40">
+                                    <span class="text-xs font-semibold text-slate-400">Luminosité</span>
+                                    <input type="range" id="filter-brightness" min="0.5" max="1.5" step="0.1" value="1">
+                                    <span class="text-xs font-semibold text-slate-400">Contraste</span>
+                                    <input type="range" id="filter-contrast" min="0.5" max="1.5" step="0.1" value="1">
+                                    <button id="btn-reset-filters" class="text-xs text-blue-400 hover:underline mt-1 cursor-pointer">Réinitialiser</button>
+                                </div>
+                            </div>
+
+                            <div class="relative" id="speed-wrapper">
+                                <button id="btn-speed" class="bg-dark-700/80 hover:bg-dark-600 px-2 py-1 rounded text-xs font-semibold text-slate-200 transition cursor-pointer">
+                                    1.0x
+                                </button>
+                                <div id="speed-menu" class="absolute bottom-full right-0 mb-2 w-28 bg-dark-800 border border-dark-700 rounded-xl shadow-xl hidden flex flex-col py-1 z-40">
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="0.25">0.25x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="0.5">0.5x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="0.75">0.75x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 font-bold text-blue-400 cursor-pointer" data-speed="1.0">1.0x (Normal)</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="1.25">1.25x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="1.5">1.5x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="1.75">1.75x</button>
+                                    <button class="speed-option px-3 py-1 text-left text-xs hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-speed="2.0">2.0x</button>
+                                </div>
+                            </div>
+
+                            <div class="relative" id="subtitles-wrapper">
+                                <button id="btn-subtitles" class="text-slate-300 hover:text-white transition cursor-pointer" title="Sous-titres">
+                                    <i class="fa-solid fa-closed-captioning"></i>
+                                </button>
+                                <div id="subtitles-menu" class="absolute bottom-full right-0 mb-2 w-44 bg-dark-800 border border-dark-700 rounded-xl p-2 shadow-xl hidden flex flex-col space-y-1 z-40 text-xs">
+                                    <span class="font-semibold text-slate-400 px-2 py-1">Sous-titres</span>
+                                    <button class="sub-option text-left px-2 py-1 rounded hover:bg-blue-600/30 text-slate-200 cursor-pointer" data-sub="off">Désactivés</button>
+                                    <div id="dynamic-subtitles-list"></div>
+                                    <label class="block mt-1 pt-1 border-t border-dark-700 text-blue-400 hover:underline cursor-pointer text-center">
+                                        Ajouter un .vtt/.srt
+                                        <input type="file" id="external-sub-input" accept=".vtt,.srt" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button id="btn-screenshot" class="text-slate-300 hover:text-white transition cursor-pointer" title="Capture d'écran">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+
+                            <button id="btn-pip" class="text-slate-300 hover:text-white transition cursor-pointer" title="Picture-in-Picture">
+                                <i class="fa-solid fa-clone"></i>
+                            </button>
+
+                            <button id="btn-fullscreen" class="text-slate-300 hover:text-white transition cursor-pointer" title="Plein Écran (F)">
+                                <i class="fa-solid fa-expand" id="icon-fullscreen"></i>
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div id="video-info-card" class="bg-dark-800 border border-dark-700 p-4 rounded-xl flex justify-between items-center hidden">
+                <div>
+                    <h2 id="current-video-title" class="font-bold text-base text-slate-100 truncate">Nom du fichier</h2>
+                    <p id="current-video-status" class="text-xs text-slate-400">Prêt à la lecture</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Section Playlist -->
+        <div id="playlist-section" class="bg-dark-800 border border-dark-700 rounded-2xl p-4 flex flex-col h-[600px] shadow-lg">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-md flex items-center space-x-2">
+                    <i class="fa-solid fa-list text-blue-500"></i>
+                    <span>Playlist du dossier</span>
+                </h3>
+                <span id="video-count" class="bg-dark-700 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono">0 média</span>
+            </div>
+
+            <div class="relative mb-3">
+                <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="search-playlist" placeholder="Filtrer les fichiers..." class="w-full bg-dark-900 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div id="playlist-container" class="flex-1 overflow-y-auto space-y-2 pr-1">
+                <div class="text-center py-12 text-slate-500 text-xs">
+                    Aucun dossier chargé
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const btnSelectFolder = document.getElementById('btn-select-folder');
+        const folderInput = document.getElementById('folder-input');
+        const videoPlayer = document.getElementById('video-player');
+        const audioVisualizer = document.getElementById('audio-visualizer');
+        const audioTitle = document.getElementById('audio-title');
+        const noMediaPlaceholder = document.getElementById('no-media-placeholder');
+        const videoControls = document.getElementById('video-controls');
+        const playerContainer = document.getElementById('player-container');
+        const videoOverlay = document.getElementById('video-overlay');
+        const playlistContainer = document.getElementById('playlist-container');
+        const videoCount = document.getElementById('video-count');
+        const currentVideoTitle = document.getElementById('current-video-title');
+        const videoInfoCard = document.getElementById('video-info-card');
+        const searchPlaylist = document.getElementById('search-playlist');
+
+        const btnPlayPause = document.getElementById('btn-play-pause');
+        const iconPlayPause = document.getElementById('icon-play-pause');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnMute = document.getElementById('btn-mute');
+        const iconVolume = document.getElementById('icon-volume');
+        const volumeSlider = document.getElementById('volume-slider');
+        const progressBar = document.getElementById('progress-bar');
+        const progressContainer = document.getElementById('progress-container');
+        const bufferBar = document.getElementById('buffer-bar');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        const iconFullscreen = document.getElementById('icon-fullscreen');
+        const btnCinema = document.getElementById('btn-cinema');
+        const btnPip = document.getElementById('btn-pip');
+        const btnScreenshot = document.getElementById('btn-screenshot');
+
+        const btnSpeed = document.getElementById('btn-speed');
+        const speedMenu = document.getElementById('speed-menu');
+        const speedOptions = document.querySelectorAll('.speed-option');
+
+        const btnSubtitles = document.getElementById('btn-subtitles');
+        const subtitlesMenu = document.getElementById('subtitles-menu');
+        const videoTrack = document.getElementById('video-track');
+        const externalSubInput = document.getElementById('external-sub-input');
+        const dynamicSubtitlesList = document.getElementById('dynamic-subtitles-list');
+
+        const btnFiltersToggle = document.getElementById('btn-filters-toggle');
+        const filtersMenu = document.getElementById('filters-menu');
+        const filterBrightness = document.getElementById('filter-brightness');
+        const filterContrast = document.getElementById('filter-contrast');
+        const btnResetFilters = document.getElementById('btn-reset-filters');
+
+        let playlist = []; 
+        let currentIndex = -1;
+        let controlsTimeout = null;
+
+        // --- GESTION PARFAITE DE L'INACTIVITÉ DE LA SOURIS ---
+        function showControls() {
+            videoControls.classList.remove('opacity-0');
+            videoControls.classList.add('opacity-100');
+            playerContainer.classList.remove('hide-cursor');
+            
+            clearTimeout(controlsTimeout);
+            
+            if (!videoPlayer.paused) {
+                controlsTimeout = setTimeout(() => {
+                    const isMenuOpen = !speedMenu.classList.contains('hidden') || 
+                                       !subtitlesMenu.classList.contains('hidden') || 
+                                       !filtersMenu.classList.contains('hidden');
+                    if (!isMenuOpen) {
+                        videoControls.classList.remove('opacity-100');
+                        videoControls.classList.add('opacity-0');
+                        playerContainer.classList.add('hide-cursor');
+                    }
+                }, 2500);
+            }
+        }
+
+        playerContainer.addEventListener('mousemove', showControls);
+        videoControls.addEventListener('mousemove', (e) => {
+            e.stopPropagation();
+            showControls();
+        });
+
+        playerContainer.addEventListener('mouseleave', () => {
+            if (!videoPlayer.paused) {
+                videoControls.classList.remove('opacity-100');
+                videoControls.classList.add('opacity-0');
+                playerContainer.classList.add('hide-cursor');
+            }
+        });
+
+        btnSelectFolder.addEventListener('click', () => {
+            folderInput.click();
+        });
+
+        folderInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            playlist = [];
+
+            const mediaFiles = files.filter(f => {
+                const name = f.name.toLowerCase();
+                return name.endsWith('.mp4') || name.endsWith('.mp3');
+            });
+
+            const subFiles = files.filter(f => {
+                const name = f.name.toLowerCase();
+                return name.endsWith('.vtt') || name.endsWith('.srt');
+            });
+
+            mediaFiles.forEach(file => {
+                const isMp3 = file.name.toLowerCase().endsWith('.mp3');
+                const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.'));
+                
+                const matchedSubs = isMp3 ? [] : subFiles.filter(sub => {
+                    const subNameWithoutExt = sub.name.substring(0, sub.name.lastIndexOf('.'));
+                    return subNameWithoutExt.toLowerCase() === nameWithoutExt.toLowerCase();
+                }).map(sub => ({
+                    name: sub.name,
+                    url: URL.createObjectURL(sub)
+                }));
+
+                playlist.push({
+                    file: file,
+                    name: file.name,
+                    nameWithoutExt: nameWithoutExt,
+                    url: URL.createObjectURL(file),
+                    type: isMp3 ? 'audio' : 'video',
+                    subtitles: matchedSubs
+                });
+            });
+
+            renderPlaylist();
+            if (playlist.length > 0) {
+                loadMedia(0);
+            } else {
+                alert("Aucun fichier MP4 ou MP3 trouvé dans ce dossier.");
+            }
+        });
+
+        function renderPlaylist(filter = '') {
+            playlistContainer.innerHTML = '';
+            const filtered = playlist.filter(item => item.name.toLowerCase().includes(filter.toLowerCase()));
+            
+            videoCount.textContent = `${filtered.length} média${filtered.length > 1 ? 's' : ''}`;
+
+            if (filtered.length === 0) {
+                playlistContainer.innerHTML = '<div class="text-center py-8 text-slate-500 text-xs">Aucun média trouvé</div>';
+                return;
+            }
+
+            filtered.forEach((item) => {
+                const originalIndex = playlist.indexOf(item);
+                const isCurrent = originalIndex === currentIndex;
+                const isAudio = item.type === 'audio';
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl cursor-pointer transition flex items-center justify-between border ${isCurrent ? 'bg-blue-600/20 border-blue-500' : 'bg-dark-900 border-dark-700 hover:bg-dark-700'}`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="bg-dark-700 text-blue-400 p-2 rounded-lg flex-shrink-0">
+                            <i class="fa-solid ${isAudio ? 'fa-music' : 'fa-file-video'}"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <h4 class="text-xs font-semibold text-slate-200 truncate">${item.name}</h4>
+                            <p class="text-[10px] text-slate-400">${isAudio ? 'Audio MP3' : (item.subtitles.length > 0 ? item.subtitles.length + ' sous-titre(s)' : 'Pas de sous-titre')}</p>
+                        </div>
+                    </div>
+                    ${isCurrent ? '<i class="fa-solid fa-volume-high text-blue-400 text-xs animate-pulse"></i>' : ''}
+                `;
+
+                card.addEventListener('click', () => loadMedia(originalIndex));
+                playlistContainer.appendChild(card);
+            });
+        }
+
+        searchPlaylist.addEventListener('input', (e) => {
+            renderPlaylist(e.target.value);
+        });
+
+        function loadMedia(index) {
+            currentIndex = index;
+            const item = playlist[index];
+
+            noMediaPlaceholder.classList.add('hidden');
+            videoOverlay.classList.remove('hidden');
+            videoInfoCard.classList.remove('hidden');
+            currentVideoTitle.textContent = item.name;
+
+            if (item.type === 'audio') {
+                videoPlayer.pause();
+                videoPlayer.removeAttribute('src');
+                videoPlayer.load();
+                audioVisualizer.classList.remove('hidden');
+                audioTitle.textContent = item.name;
+                
+                videoPlayer.src = item.url;
+                videoPlayer.load();
+
+                document.getElementById('subtitles-wrapper').classList.add('hidden');
+                document.getElementById('filters-wrapper').classList.add('hidden');
+                btnPip.classList.add('hidden');
+                btnScreenshot.classList.add('hidden');
+            } else {
+                audioVisualizer.classList.add('hidden');
+                document.getElementById('subtitles-wrapper').classList.remove('hidden');
+                document.getElementById('filters-wrapper').classList.remove('hidden');
+                btnPip.classList.remove('hidden');
+                btnScreenshot.classList.remove('hidden');
+
+                videoPlayer.src = item.url;
+                videoPlayer.load();
+
+                dynamicSubtitlesList.innerHTML = '';
+                if (item.subtitles.length > 0) {
+                    item.subtitles.forEach((sub) => {
+                        const btn = document.createElement('button');
+                        btn.className = 'sub-option text-left px-2 py-1 rounded hover:bg-blue-600/30 text-slate-200 w-full truncate cursor-pointer';
+                        btn.textContent = sub.name;
+                        btn.addEventListener('click', () => {
+                            videoTrack.src = sub.url;
+                            videoPlayer.textTracks[0].mode = 'showing';
+                            subtitlesMenu.classList.add('hidden');
+                        });
+                        dynamicSubtitlesList.appendChild(btn);
+                    });
+                    videoTrack.src = item.subtitles[0].url;
+                    videoPlayer.textTracks[0].mode = 'showing';
+                } else {
+                    videoTrack.src = '';
+                    videoPlayer.textTracks[0].mode = 'disabled';
+                }
+            }
+
+            const savedTime = localStorage.getItem('progress_' + item.name);
+            if (savedTime && parseFloat(savedTime) > 5) {
+                videoPlayer.currentTime = parseFloat(savedTime);
+            }
+
+            videoPlayer.play().catch(err => console.log("Lecture auto bloquée par le navigateur :", err));
+            iconPlayPause.className = 'fa-solid fa-pause';
+            showControls();
+            renderPlaylist(searchPlaylist.value);
+        }
+
+        function togglePlay() {
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+                iconPlayPause.className = 'fa-solid fa-pause';
+                showControls();
+            } else {
+                videoPlayer.pause();
+                iconPlayPause.className = 'fa-solid fa-play';
+                videoControls.classList.remove('opacity-0');
+                videoControls.classList.add('opacity-100');
+                playerContainer.classList.remove('hide-cursor');
+                clearTimeout(controlsTimeout);
+            }
+        }
+
+        btnPlayPause.addEventListener('click', togglePlay);
+        videoPlayer.addEventListener('click', togglePlay);
+        videoOverlay.addEventListener('click', togglePlay);
+
+        btnRestart.addEventListener('click', () => {
+            videoPlayer.currentTime = 0;
+            videoPlayer.play();
+        });
+
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (!isNaN(videoPlayer.duration)) {
+                const percent = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                progressBar.style.width = `${percent}%`;
+                currentTimeEl.textContent = formatTime(videoPlayer.currentTime);
+                durationEl.textContent = formatTime(videoPlayer.duration);
+
+                if (playlist[currentIndex]) {
+                    localStorage.setItem('progress_' + playlist[currentIndex].name, videoPlayer.currentTime);
+                }
+            }
+        });
+
+        videoPlayer.addEventListener('loadedmetadata', () => {
+            durationEl.textContent = formatTime(videoPlayer.duration);
+        });
+
+        videoPlayer.addEventListener('progress', () => {
+            if (videoPlayer.buffered.length > 0 && videoPlayer.duration) {
+                const bufferedEnd = videoPlayer.buffered.end(videoPlayer.buffered.length - 1);
+                const percent = (bufferedEnd / videoPlayer.duration) * 100;
+                bufferBar.style.width = `${percent}%`;
+            }
+        });
+
+        videoPlayer.addEventListener('ended', () => {
+            if (currentIndex + 1 < playlist.length) {
+                loadMedia(currentIndex + 1);
+            }
+        });
+
+        progressContainer.addEventListener('click', (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            videoPlayer.currentTime = pos * videoPlayer.duration;
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            videoPlayer.volume = e.target.value;
+            videoPlayer.muted = false;
+            updateVolumeIcon();
+        });
+
+        btnMute.addEventListener('click', () => {
+            videoPlayer.muted = !videoPlayer.muted;
+            updateVolumeIcon();
+        });
+
+        function updateVolumeIcon() {
+            if (videoPlayer.muted || videoPlayer.volume === 0) {
+                iconVolume.className = 'fa-solid fa-volume-xmark text-red-400';
+                volumeSlider.value = 0;
+            } else if (videoPlayer.volume < 0.5) {
+                iconVolume.className = 'fa-solid fa-volume-low';
+                volumeSlider.value = videoPlayer.volume;
+            } else {
+                iconVolume.className = 'fa-solid fa-volume-high';
+                volumeSlider.value = videoPlayer.volume;
+            }
+        }
+
+        btnSpeed.addEventListener('click', (e) => {
+            e.stopPropagation();
+            speedMenu.classList.toggle('hidden');
+            subtitlesMenu.classList.add('hidden');
+            filtersMenu.classList.add('hidden');
+        });
+
+        speedOptions.forEach(opt => {
+            opt.addEventListener('click', () => {
+                const speed = parseFloat(opt.dataset.speed);
+                videoPlayer.playbackRate = speed;
+                btnSpeed.textContent = speed + 'x';
+                speedMenu.classList.add('hidden');
+            });
+        });
+
+        btnSubtitles.addEventListener('click', (e) => {
+            e.stopPropagation();
+            subtitlesMenu.classList.toggle('hidden');
+            speedMenu.classList.add('hidden');
+            filtersMenu.classList.add('hidden');
+        });
+
+        document.querySelectorAll('.sub-option').forEach(btn => {
+            if (btn.dataset.sub === 'off') {
+                btn.addEventListener('click', () => {
+                    videoPlayer.textTracks[0].mode = 'disabled';
+                    subtitlesMenu.classList.add('hidden');
+                });
+            }
+        });
+
+        externalSubInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                videoTrack.src = url;
+                videoPlayer.textTracks[0].mode = 'showing';
+                subtitlesMenu.classList.add('hidden');
+            }
+        });
+
+        btnFiltersToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            filtersMenu.classList.toggle('hidden');
+            speedMenu.classList.add('hidden');
+            subtitlesMenu.classList.add('hidden');
+        });
+
+        function updateFilters() {
+            videoPlayer.style.filter = `brightness(${filterBrightness.value}) contrast(${filterContrast.value})`;
+        }
+        filterBrightness.addEventListener('input', updateFilters);
+        filterContrast.addEventListener('input', updateFilters);
+        btnResetFilters.addEventListener('click', () => {
+            filterBrightness.value = 1;
+            filterContrast.value = 1;
+            updateFilters();
+        });
+
+        btnScreenshot.addEventListener('click', () => {
+            if (playlist[currentIndex] && playlist[currentIndex].type === 'audio') return;
+            if (videoPlayer.paused && videoPlayer.currentTime === 0) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = videoPlayer.videoWidth;
+            canvas.height = videoPlayer.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+            
+            const link = document.createElement('a');
+            link.download = (playlist[currentIndex] ? playlist[currentIndex].nameWithoutExt : 'capture') + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        btnPip.addEventListener('click', async () => {
+            if (playlist[currentIndex] && playlist[currentIndex].type === 'audio') return;
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await videoPlayer.requestPictureInPicture();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        btnFullscreen.addEventListener('click', toggleFullscreen);
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                playerContainer.requestFullscreen().catch(err => {
+                    alert(`Erreur plein écran : ${err.message}`);
+                });
+                iconFullscreen.className = 'fa-solid fa-compress';
+            } else {
+                document.exitFullscreen();
+                iconFullscreen.className = 'fa-solid fa-expand';
+            }
+        }
+
+        btnCinema.addEventListener('click', () => {
+            document.body.classList.toggle('cinema-mode');
+            btnCinema.classList.toggle('text-blue-400');
+        });
+
+        window.addEventListener('click', () => {
+            speedMenu.classList.add('hidden');
+            subtitlesMenu.classList.add('hidden');
+            filtersMenu.classList.add('hidden');
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (['input', 'textarea'].includes(e.target.tagName.toLowerCase())) return;
+
+            if (e.code === 'Space' || e.code === 'KeyK') {
+                e.preventDefault();
+                togglePlay();
+            } else if (e.code === 'KeyF') {
+                toggleFullscreen();
+            } else if (e.code === 'KeyC') {
+                document.body.classList.toggle('cinema-mode');
+                btnCinema.classList.toggle('text-blue-400');
+            } else if (e.code === 'KeyM') {
+                videoPlayer.muted = !videoPlayer.muted;
+                updateVolumeIcon();
+            } else if (e.code === 'ArrowRight') {
+                videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 5);
+            } else if (e.code === 'ArrowLeft') {
+                videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 5);
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                videoPlayer.volume = Math.min(1, videoPlayer.volume + 0.05);
+                updateVolumeIcon();
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                videoPlayer.volume = Math.max(0, videoPlayer.volume - 0.05);
+                updateVolumeIcon();
+            }
+        });
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
