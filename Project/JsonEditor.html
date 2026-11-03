@@ -14,6 +14,7 @@
       --accent: #38bdf8;
       --accent-hover: #0284c7;
       --danger: #ef4444;
+      --success: #00ffa3;
     }
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -70,6 +71,14 @@
     .btn-secondary:hover {
       background: #64748b;
     }
+    .btn-success {
+      background: var(--success);
+      color: #000;
+      font-weight: 600;
+    }
+    .btn-success:hover {
+      background: #00cc82;
+    }
     .btn-danger {
       background: transparent;
       color: var(--danger);
@@ -84,6 +93,12 @@
       margin-left: auto;
       color: var(--muted);
       font-size: 0.9rem;
+    }
+    .file-status {
+      width: 100%;
+      font-size: 0.8rem;
+      color: var(--success);
+      margin-top: 4px;
     }
     table {
       width: 100%;
@@ -133,38 +148,72 @@
 
   <div class="container">
     <h1>Éditeur de Timestamp — Sauvegarde App</h1>
-    <p class="subtitle">Chargez votre fichier JSON, modifiez les dates et exportez les données corrigées.</p>
+    <p class="subtitle">Ouvrez directement votre fichier local pour le modifier en temps réel, ou utilisez l'import/export.</p>
 
     <div class="toolbar">
-      <label class="btn">
-        📁 Importer un fichier JSON
+      <!-- NOUVELLE OPTION : Ouvrir et modifier directement le fichier local -->
+      <button class="btn btn-success" id="openDirectBtn">📂 Ouvrir & Modifier Fichier Local</button>
+      
+      <label class="btn btn-secondary">
+        📁 Importer (Classique)
         <input type="file" id="fileInput" accept=".json">
       </label>
-      <button class="btn btn-secondary" id="sortBtn" style="display:none;">⬇️ Trier: Plus récent en haut</button>
-      <button class="btn btn-secondary" id="addBtn" style="display:none;">➕ Ajouter une ligne</button>
-      <button class="btn" id="exportBtn" style="display:none; margin-left: 8px;">💾 Exporter newsave.json</button>
-      <span class="stats" id="stats"></span>
+      
+      <button class="btn btn-secondary" id="sortBtn" style="display:none;">⬇️ Trier: Récent en haut</button>
+      <button class="btn btn-secondary" id="addBtn" style="display:none;">➕ Ajouter</button>
+      <button class="btn" id="exportBtn" style="display:none; margin-left: auto;">💾 Télécharger newsave.json</button>
+      
+      <div class="file-status" id="fileStatus"></div>
     </div>
 
     <div id="tableContainer">
       <div class="empty-state">
-        Aucun fichier chargé. Veuillez sélectionner votre fichier <code>.json</code>.
+        Aucun fichier chargé. Cliquez sur <strong>"Ouvrir & Modifier Fichier Local"</strong> ou importez un fichier.
       </div>
     </div>
   </div>
 
   <script>
     let rawData = null;
-    let isSortDescending = false; // Par défaut : ordre d'origine / chronologique
+    let fileHandle = null; // Référence du fichier ouvert directement
+    let isSortDescending = false; // Tri par défaut (chronologique)
 
+    const openDirectBtn = document.getElementById('openDirectBtn');
     const fileInput = document.getElementById('fileInput');
     const tableContainer = document.getElementById('tableContainer');
     const exportBtn = document.getElementById('exportBtn');
     const addBtn = document.getElementById('addBtn');
     const sortBtn = document.getElementById('sortBtn');
     const stats = document.getElementById('stats');
+    const fileStatus = document.getElementById('fileStatus');
 
-    // Importer le fichier JSON
+    // 1. Option : Ouvrir et modifier directement le fichier en local (File System Access API)
+    openDirectBtn.addEventListener('click', async () => {
+      if ('showOpenFilePicker' in window) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{ description: 'Fichiers JSON', accept: { 'application/json': ['.json'] } }],
+            multiple: false
+          });
+          fileHandle = handle;
+          const file = await fileHandle.getFile();
+          const content = await file.text();
+          
+          rawData = JSON.parse(content);
+          if (!rawData.records) rawData.records = [];
+          
+          onFileLoaded(file.name);
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            alert('Erreur lors de l\'ouverture du fichier : ' + err.message);
+          }
+        }
+      } else {
+        alert("Votre navigateur ne supporte pas l'écriture directe de fichiers locaux. Utilisez le bouton 'Importer (Classique)' et 'Télécharger newsave.json'.");
+      }
+    });
+
+    // 2. Option de secours : Import classique par input file
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -174,10 +223,8 @@
         try {
           rawData = JSON.parse(event.target.result);
           if (!rawData.records) rawData.records = [];
-          renderTable();
-          exportBtn.style.display = 'inline-block';
-          addBtn.style.display = 'inline-block';
-          sortBtn.style.display = 'inline-block';
+          fileHandle = null; // Pas de lien direct en mode classique
+          onFileLoaded(file.name);
         } catch (err) {
           alert('Erreur lors de la lecture du fichier JSON : ' + err.message);
         }
@@ -185,46 +232,61 @@
       reader.readAsText(file);
     });
 
-    // Convertir Timestamp ms -> ISO local pour l'input datetime-local
+    // Activer l'interface après chargement
+    function onFileLoaded(filename) {
+      renderTable();
+      exportBtn.style.display = 'inline-block';
+      addBtn.style.display = 'inline-block';
+      sortBtn.style.display = 'inline-block';
+      
+      if (fileHandle) {
+        fileStatus.textContent = `Fichier lié en direct : ${filename} (Sauvegarde automatique à chaque modification)`;
+      } else {
+        fileStatus.textContent = `Fichier chargé : ${filename} (Utilisez le bouton de téléchargement pour enregistrer)`;
+      }
+    }
+
+    // Convertisseur Timestamp ms -> ISO local
     function tsToLocalISO(ts) {
       const date = new Date(ts);
       const tzOffset = date.getTimezoneOffset() * 60000;
       return (new Date(ts - tzOffset)).toISOString().slice(0, 19);
     }
 
-    // Convertir ISO local -> Timestamp ms
+    // Convertisseur ISO local -> Timestamp ms
     function localISOToTs(isoStr) {
       return new Date(isoStr).getTime();
     }
 
-    // Gérer l'inversion du tri d'affichage
+    // Gestion du tri (récent en haut / bas)
     sortBtn.addEventListener('click', () => {
       isSortDescending = !isSortDescending;
-      sortBtn.textContent = isSortDescending ? "⬆️ Trier: Plus récent en bas" : "⬇️ Trier: Plus récent en haut";
+      sortBtn.textContent = isSortDescending ? "⬆️ Trier: Récent en bas" : "⬇️ Trier: Récent en haut";
       renderTable();
     });
 
-    // Afficher le tableau d'édition
+    // Rendu du tableau d'édition
     function renderTable() {
       if (!rawData || !rawData.records) return;
 
-      stats.textContent = `${rawData.records.length} enregistrement(s)`;
-
-      // Préparer les données selon l'ordre sélectionné
-      const displayRecords = rawData.records.map((rec, originalIndex) => ({ rec, originalIndex }));
+      // Création d'une barre de stats dynamique si elle n'est pas dans la toolbar
+      let displayRecords = rawData.records.map((rec, originalIndex) => ({ rec, originalIndex }));
       if (isSortDescending) {
         displayRecords.reverse();
       }
 
       let html = `
+        <div style="margin-bottom: 12px; color: var(--muted); font-size: 0.9rem;">
+          <strong>${rawData.records.length}</strong> enregistrement(s)
+        </div>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Date & Heure (Modifiable)</th>
               <th>Timestamp Raw (ms)</th>
-              <th>Paramètre P</th>
-              <th>Paramètre G</th>
+              <th>P</th>
+              <th>G</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -258,28 +320,43 @@
       tableContainer.innerHTML = html;
     }
 
-    // Mettre à jour le timestamp
-    window.updateTimestamp = function(index, dateStr) {
+    // Sauvegarde automatique (écriture directe si fichier lié)
+    async function persistChanges() {
+      if (fileHandle) {
+        try {
+          const writable = await fileHandle.createWritable();
+          await writable.write(JSON.stringify(rawData, null, 2));
+          await writable.close();
+          // Petit effet visuel discret de sauvegarde
+          fileStatus.style.color = '#38bdf8';
+          setTimeout(() => { fileStatus.style.color = 'var(--success)'; }, 500);
+        } catch (err) {
+          console.error("Erreur lors de l'écriture directe :", err);
+        }
+      }
+    }
+
+    window.updateTimestamp = async function(index, dateStr) {
       const newTs = localISOToTs(dateStr);
       if (!isNaN(newTs)) {
         rawData.records[index].ts = newTs;
         document.getElementById(`ts-raw-${index}`).textContent = newTs;
+        await persistChanges();
       }
     };
 
-    // Mettre à jour P ou G
-    window.updateParam = function(index, param, val) {
+    window.updateParam = async function(index, param, val) {
       rawData.records[index][param] = parseFloat(val);
+      await persistChanges();
     };
 
-    // Supprimer une ligne
-    window.deleteRecord = function(index) {
+    window.deleteRecord = async function(index) {
       rawData.records.splice(index, 1);
       renderTable();
+      await persistChanges();
     };
 
-    // Ajouter une ligne
-    addBtn.addEventListener('click', () => {
+    addBtn.addEventListener('click', async () => {
       const lastRec = rawData.records[rawData.records.length - 1] || { p: 0.65, g: 14 };
       rawData.records.push({
         ts: Date.now(),
@@ -287,12 +364,12 @@
         g: lastRec.g
       });
       renderTable();
+      await persistChanges();
     });
 
-    // Exporter au format newsave.json (Compatible Safari iOS / iPadOS)
+    // Bouton d'export forcé sous newsave.json (pour iPadOS / téléchargement classique)
     exportBtn.addEventListener('click', () => {
       const jsonString = JSON.stringify(rawData, null, 2);
-      // Utilisation du type octet-stream pour forcer le téléchargement sur iPadOS
       const blob = new Blob([jsonString], { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
       
